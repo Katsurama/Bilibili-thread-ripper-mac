@@ -175,8 +175,8 @@ def patch(original_path, bundle_path, output_path, install_root):
         raise ValueError("客户端已经包含 BTR 入口")
     archive.set(info["entry"], with_bootstrap(info["entry"], entry_text))
     preload = payload("preload.cjs")
-    if "__BTR_BUNDLE__" not in preload or "__BTR_MAC_INFO__" not in preload:
-        raise ValueError("preload.cjs 缺少注入位置")
+    if preload.count("__BTR_BUNDLE__") != 1 or preload.count("__BTR_MAC_INFO__") != 1:
+        raise ValueError("preload.cjs 的注入位置不对")
     mac_info = {"macVersion": mac_version(install_root), "btrVersion": bundle_version(bundle), "license": upstream_license(bundle_path)}
     preload = preload.replace("__BTR_MAC_INFO__", json.dumps(mac_info, ensure_ascii=False))
     archive.set(BOOTSTRAP_FILE, payload("bootstrap.cjs"))

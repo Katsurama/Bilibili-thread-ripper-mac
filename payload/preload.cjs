@@ -1,8 +1,8 @@
 "use strict";
 // Renderer preload, the same as the Windows build: relays the settings page's update and
 // uninstall requests to the main process and injects the BTR bundle into the client pages.
-// btr_mac.py replaces __BTR_BUNDLE__ with the bundle as a JSON string and __BTR_MAC_INFO__ with the
-// macOS port's version, the bundled BTR version and the upstream LICENSE text.
+// btr_mac.py fills in two placeholders below (each must appear exactly once in this file): the bundle
+// as a JSON string, and the macOS port's version, the bundled BTR version and the upstream LICENSE text.
 (() => {
 if (!process.isMainFrame || location.origin !== "https://bilipc.bilibili.com" || !/^\/(index|player)\.html$/.test(location.pathname)) return;
 const { ipcRenderer } = require("electron"), channel = "__BTR_DESKTOP_UPDATE__";
@@ -79,7 +79,8 @@ function decorate() {
   about.append(style);
   title.after(about);
 }
-new MutationObserver(decorate).observe(document, { childList: true, subtree: true });
+// The settings page lives in the main window only; the player page changes constantly (danmaku).
+if (location.pathname === "/index.html") new MutationObserver(decorate).observe(document, { childList: true, subtree: true });
 
 const code = __BTR_BUNDLE__;
 let injected = false;
