@@ -72,7 +72,9 @@ function decorate() {
   else license.append(macLine("许可证全文见", macLink("原仓库", "upstream")));
   about.append(license);
   const style = document.createElement("style");
-  style.textContent = `#btr-desktop-settings .btr-mac-about{margin:-8px 0 18px}#btr-desktop-settings .btr-mac-line{margin:4px 0}
+  // Upstream gives only buttons a pointer; checkboxes and their labels kept the arrow.
+  style.textContent = `#btr-desktop-settings input[type=checkbox]:not(:disabled),#btr-desktop-settings label:has(input[type=checkbox]:not(:disabled)){cursor:pointer}
+    #btr-desktop-settings .btr-mac-about{margin:-8px 0 18px}#btr-desktop-settings .btr-mac-line{margin:4px 0}
     #btr-desktop-settings .btr-mac-link{color:#ef77a3;text-decoration:none;margin:0 2px}#btr-desktop-settings .btr-mac-link:hover{text-decoration:underline}
     #btr-desktop-settings .btr-mac-license{margin-top:8px;color:var(--text3,#9499a0);font-size:12px}#btr-desktop-settings .btr-mac-license summary{cursor:pointer}
     #btr-desktop-settings .btr-mac-license pre{white-space:pre-wrap;margin:8px 0 0;padding:10px;border:1px solid var(--line_regular,#353638);border-radius:5px;font:12px/1.5 ui-monospace,Menlo,monospace;user-select:text}`;
