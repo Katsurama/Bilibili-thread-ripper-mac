@@ -1,8 +1,8 @@
 "use strict";
 // macOS counterpart of the Windows update-main.cjs: the settings page asks over IPC, the main
-// process checks the upstream manifest, confirms with a dialog, starts install-mac.sh in the
-// background and quits the client. The script waits for the client to exit, does the work and
-// opens the client again. IPC channel names and result states match the Windows build, so the
+// process checks the manifests, confirms with a dialog and starts install-mac.sh, which hands the
+// work to Terminal and exits; then the client quits. Terminal waits for the client to exit, does
+// the work and opens the client again. IPC channel names and result states match the Windows build, so the
 // shared settings page works unchanged. Besides the upstream BTR manifest it also reads this
 // repository's mac-version.json, so changes to the macOS port are offered as updates too.
 const path = require("path"), fs = require("fs");
@@ -143,7 +143,6 @@ function register(electron) {
       if (code !== 0) throw Error("无法打开终端，请在终端运行 install-mac.sh " + (remove ? "uninstall" : "update"));
       started = true; operation = remove ? "uninstalling" : "installing";
       publish({ state: operation, message: remove ? "正在关闭客户端，将在终端里卸载 BTR，完成后自动重新打开" : "正在关闭客户端，将在终端里安装更新，完成后自动重新打开" });
-      // The script waits for this process to exit before touching the app bundle.
       // Terminal waits for this process to exit before touching the app bundle.
       setTimeout(() => { app.quit(); setTimeout(() => app.exit(0), 3000).unref?.(); }, 1200);
       return { state: operation, message: remove ? "正在卸载 BTR" : "正在安装更新" };
