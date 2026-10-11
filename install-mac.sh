@@ -207,7 +207,7 @@ install() {
   rm -rf "$tmp"
   resign
   sync_appinfo
-  say "安装完成。打开客户端，在 设置 → 线程撕裂者 里调整；还原请运行 install-mac.sh uninstall"
+  say "安装完成。打开客户端，在 设置 → BTR 线程撕裂者 里调整；还原请运行 install-mac.sh uninstall"
   notify "BTR 已更新，正在重新打开客户端"
   relaunch
 }
