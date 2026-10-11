@@ -90,7 +90,22 @@ fi
 
 check_app() {
   [ -f "$ASAR" ] || die "找不到哔哩哔哩客户端（${APP}）。请先从官网安装客户端；装在别处的话，用 BTR_APP=/path/to/哔哩哔哩.app 指定"
+  # 卸载时会删除并替换 $APP，所以必须确认它真的是哔哩哔哩客户端，不能是 BTR_APP 指错的别的应用。
+  case "$APP" in /*.app) ;; *) die "客户端路径不对：${APP}" ;; esac
+  [ "$(/usr/libexec/PlistBuddy -c "Print CFBundleIdentifier" "$PLIST" 2>/dev/null)" = "com.bilibili.bilibiliPC" ] \
+    || die "${APP} 不是哔哩哔哩客户端，没有做任何修改"
   if pgrep -f "$APP/Contents/MacOS/" >/dev/null 2>&1; then die "请先完全退出哔哩哔哩客户端（⌘Q）再运行"; fi
+}
+
+# BTR 的数据目录里会删除 src、backup 等子目录，所以只接受默认位置，或者带着 BTR 标记文件的目录。
+# BTR_DATA 被指到别的已有目录（比如 ~/Documents）时直接停止，不会删到用户自己的文件。
+DATA_MARKER=".btr-mac-data"
+ensure_data_dir() {
+  if [ "$DATA" != "$HOME/Library/Application Support/BTR-Mac" ] && [ -d "$DATA" ] \
+    && [ ! -f "$DATA/$DATA_MARKER" ] && [ -n "$(ls -A "$DATA" 2>/dev/null)" ]; then
+    die "BTR_DATA（${DATA}）不是 BTR 的数据目录，里面已经有别的文件。请换一个空目录"
+  fi
+  mkdir -p "$DATA" && : > "$DATA/$DATA_MARKER"
 }
 
 # 修改 /Applications 里的应用需要“App 管理”权限。
@@ -185,8 +200,8 @@ resign() {
 }
 
 install() {
-  check_app; check_writable; fetch_bundle; remember_appinfo; make_backup
-  local tmp; mkdir -p "$DATA"; tmp="$(mktemp -d "$DATA/tmp.XXXXXX")"
+  check_app; ensure_data_dir; check_writable; fetch_bundle; remember_appinfo; make_backup
+  local tmp; tmp="$(mktemp -d "$DATA/tmp.XXXXXX")"
   python3 -I "$PATCHER" patch "$BACKUP/Contents/Resources/app.asar" "$BUNDLE" "$tmp/app.asar" "$HERE"
   cp "$tmp/app.asar" "$ASAR.btr.tmp" && mv "$ASAR.btr.tmp" "$ASAR"
   rm -rf "$tmp"
@@ -210,6 +225,7 @@ update() {
 
 uninstall() {
   check_app
+  ensure_data_dir
   [ -d "$BACKUP" ] || die "没有找到备份，无法还原。可以从官网重新下载安装官方客户端。"
   check_writable
   remember_appinfo force
@@ -227,7 +243,7 @@ uninstall() {
     clean_client_cache
     cleanup_data
     say "已还原官方客户端，并清理了备份和 BTR 的数据。账号和设置未改动。"
-    remove_installer
+    say "安装脚本还在 ${HERE}，不再需要的话请自己删除这个文件夹"
   else
     say "已还原，但没能确认还原结果，备份保留在 ${BACKUP}"
   fi
@@ -255,25 +271,12 @@ clean_client_cache() {
 }
 asar_version() { python3 -I "$PATCHER" status "$1" | python3 -I -c 'import json,sys;print(json.load(sys.stdin)["clientVersion"])'; }
 
-# 安装脚本目录是本仓库的干净克隆（没有改动、本地提交或自己的文件）时一并删除；否则保留并说明。
-# 脚本自己就在里面运行，删除已经打开的文件不影响它继续执行。
-remove_installer() {
-  local extra
-  if [ ! -d "$HERE/.git" ] || ! git -C "$HERE" remote get-url origin 2>/dev/null | grep -q 'Bilibili-thread-ripper-mac'; then
-    say "安装脚本在 ${HERE}，不再需要的话可以删除"; return 0
-  fi
-  extra="$(git -C "$HERE" status --porcelain --ignored 2>/dev/null | grep -v -e '__pycache__/$' -e '\.DS_Store$' || true)"
-  if [ -z "$extra" ] && [ -z "$(git -C "$HERE" log --oneline '@{upstream}..HEAD' 2>/dev/null || echo unknown)" ]; then
-    cd / && rm -rf "$HERE" && say "已删除安装脚本目录 ${HERE}，BTR 已完全卸载"
-  else
-    say "安装脚本目录 ${HERE} 里有你自己的改动或文件，没有删除；不需要的话可以手动删除"
-  fi
-}
+# 安装脚本所在的文件夹不自动删除：里面可能有用户自己的文件，删不删由用户决定。
 
-# 只删除 BTR 自己创建的东西，不整个删除 $DATA（BTR_DATA 可能被指到别处）。
+# 只删除 BTR 自己创建的东西，不整个删除 $DATA；ensure_data_dir 已经确认 $DATA 是 BTR 的数据目录。
 # 从客户端发起时终端正在运行 run-in-terminal.command 并往 maintain.log 写；删掉文件不影响已经打开的它们。
 cleanup_data() {
-  rm -rf "$DATA/backup" "$DATA/src" "$DATA"/tmp.* "$DATA/run-in-terminal.command" "$DATA/maintain.log"
+  rm -rf "$DATA/backup" "$DATA/src" "$DATA"/tmp.* "$DATA/run-in-terminal.command" "$DATA/maintain.log" "$DATA/$DATA_MARKER"
   rm -rf "$(dirname "$APP")/.btr-restore.app" "$ASAR.btr.tmp"
   rmdir "$DATA" 2>/dev/null || true
 }
