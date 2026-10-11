@@ -1,7 +1,7 @@
 #!/bin/bash
 # BTR Desktop macOS 安装脚本
-#   ./install-mac.sh            安装
-#   ./install-mac.sh update     拉取本仓库和 BTR 的最新版本后重新安装
+#   ./install-mac.sh            拉取本仓库和 BTR 的最新版本后安装（已经装过就是更新）
+#   ./install-mac.sh update     同上
 #   ./install-mac.sh uninstall  还原官方客户端（用安装前的完整备份）
 #   ./install-mac.sh status     查看状态
 # 客户端设置页里的“安装更新 / 卸载 BTR”会以 --from-app <客户端进程号> 在后台调用本脚本：
@@ -39,15 +39,14 @@ die() {
   exit 1
 }
 
-# 从客户端里调用时：等客户端完全退出，然后把操作交给“终端”。
-# 由客户端启动的后台进程在客户端退出后会被系统悄无声息地结束（日志停在半路、客户端也不会被重新打开），
-# 而且修改 /Applications 需要的“App 管理”权限用户是给终端授的。终端里也能看到进度和错误。
+# 从客户端里调用时：立刻把操作交给“终端”，由终端等客户端退出后再做。
+# 客户端启动的后台进程在客户端退出后几秒内会被系统悄无声息地结束（日志停在半路、客户端也不会被重新打开），
+# 所以这里必须在客户端退出之前就完成交接；客户端会等本脚本退出后才关闭自己。
+# 修改 /Applications 需要的“App 管理”权限用户也是给终端授的，终端里还能看到进度和错误。
 if [ -n "$FROM_APP" ]; then
   mkdir -p "$DATA"; exec >>"$LOG" 2>&1
   printf '\n===== %s %s（客户端发起）=====\n' "$(date '+%F %T')" "$ACTION"
   case "$FROM_APP" in *[!0-9]*|"") die "无效的客户端进程号" ;; esac
-  for _ in $(seq 1 120); do kill -0 "$FROM_APP" 2>/dev/null || break; sleep 0.5; done
-  for _ in $(seq 1 40); do pgrep -f "$APP/Contents/" >/dev/null 2>&1 || break; sleep 0.5; done
   command="$DATA/run-in-terminal.command"
   {
     printf '#!/bin/bash\n'
@@ -55,6 +54,9 @@ if [ -n "$FROM_APP" ]; then
     for name in BTR_APP BTR_DATA BTR_REPO BTR_REF; do
       [ -n "${!name:-}" ] && printf 'export %s=%q\n' "$name" "${!name}"
     done
+    printf 'echo "等待哔哩哔哩客户端退出…"\n'
+    printf 'for _ in $(seq 1 120); do kill -0 %q 2>/dev/null || break; sleep 0.5; done\n' "$FROM_APP"
+    printf 'for _ in $(seq 1 40); do pgrep -f %q >/dev/null 2>&1 || break; sleep 0.5; done\n' "$APP/Contents/"
     printf 'printf "\\n===== %%s %%s（终端）=====\\n" "$(date "+%%F %%T")" %q >> %q\n' "$ACTION" "$LOG"
     printf '/bin/bash %q %q 2>&1 | tee -a %q\n' "$HERE/install-mac.sh" "$ACTION" "$LOG"
     printf 'if [ "${PIPESTATUS[0]}" -eq 0 ]; then open %q; exit 0; fi\n' "$APP"
@@ -173,12 +175,13 @@ install() {
   relaunch
 }
 
-# 先更新本仓库（安装脚本和注入代码），再用新脚本完成安装。
+# 先更新本仓库（安装脚本和注入代码），再用新脚本完成安装。安装和更新都这样，
+# 免得本地仓库是旧的时候装进去旧代码。
 update() {
   if [ -z "$PULLED" ] && [ -d "$HERE/.git" ]; then
     say "更新 macOS 安装脚本"
     git -C "$HERE" pull --ff-only -q || say "注意：安装脚本更新失败，继续使用当前版本"
-    exec /bin/bash "$HERE/install-mac.sh" update --pulled ${FROM_APP:+--from-app "$FROM_APP"}
+    exec /bin/bash "$HERE/install-mac.sh" "$ACTION" --pulled
   fi
   install
 }
@@ -210,8 +213,7 @@ status() {
 }
 
 case "$ACTION" in
-  install) install ;;
-  update) update ;;
+  install|update) update ;;
   uninstall|remove) uninstall ;;
   status) status ;;
   *) die "用法：$0 [install|update|uninstall|status]" ;;

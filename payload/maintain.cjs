@@ -125,11 +125,18 @@ function register(electron) {
       const environment = { ...process.env };
       delete environment.ELECTRON_RUN_AS_NODE;
       const child = spawn("/bin/bash", [script, remove ? "uninstall" : "update", "--from-app", String(process.pid)], { detached: true, stdio: "ignore", cwd: installed.installRoot, env: environment });
-      await new Promise((resolve, reject) => { child.once("spawn", resolve); child.once("error", reject); });
-      child.unref();
+      // The script only hands the work to Terminal and exits; wait for that before quitting, because
+      // processes started by the client are stopped soon after it exits.
+      const code = await new Promise((resolve, reject) => {
+        const timer = setTimeout(() => { child.unref(); reject(Error("打开终端超时，请在终端运行 install-mac.sh " + (remove ? "uninstall" : "update"))); }, 15000);
+        child.once("error", error => { clearTimeout(timer); reject(error); });
+        child.once("exit", code => { clearTimeout(timer); resolve(code); });
+      });
+      if (code !== 0) throw Error("无法打开终端，请在终端运行 install-mac.sh " + (remove ? "uninstall" : "update"));
       started = true; operation = remove ? "uninstalling" : "installing";
       publish({ state: operation, message: remove ? "正在关闭客户端，将在终端里卸载 BTR，完成后自动重新打开" : "正在关闭客户端，将在终端里安装更新，完成后自动重新打开" });
       // The script waits for this process to exit before touching the app bundle.
+      // Terminal waits for this process to exit before touching the app bundle.
       setTimeout(() => { app.quit(); setTimeout(() => app.exit(0), 3000).unref?.(); }, 1200);
       return { state: operation, message: remove ? "正在卸载 BTR" : "正在安装更新" };
     } catch (error) { return publish({ state: "error", message: String(error.message).slice(0, 200) }); }

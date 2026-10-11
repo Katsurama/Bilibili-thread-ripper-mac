@@ -20,17 +20,22 @@
 
 1. 安装官方哔哩哔哩 macOS 客户端，放在“应用程序”文件夹里
 2. **完全退出客户端**（⌘Q）
-3. 在终端运行：
+3. 在终端运行（第一次安装和以后更新都用这两行）：
 
    ```bash
-   git clone https://github.com/luitao666-arch/Bilibili-thread-ripper-mac.git ~/btr-mac
+   [ -d ~/btr-mac ] || git clone https://github.com/luitao666-arch/Bilibili-thread-ripper-mac.git ~/btr-mac
    bash ~/btr-mac/install-mac.sh
    ```
 
+   安装脚本每次都会先拉取本仓库和 BTR Desktop 的最新代码，再安装。
+
 4. 打开客户端，在 **设置 → 线程撕裂者** 里调整 CDN 和线程数
 
+> [!NOTE]
+> 2026.10.11.4 之前的版本在客户端里点更新会中途失败（日志停在半路，客户端也不会重新打开）。请 ⌘Q 退出客户端，在终端运行一次 `bash ~/btr-mac/install-mac.sh update`，之后就可以在客户端里更新了。`bash ~/btr-mac/install-mac.sh status` 可以看到当前的 `macVersion`。
+
 > [!TIP]
-> 如果提示没有权限修改客户端：打开 **系统设置 → 隐私与安全性 → App 管理**，允许你正在用的终端，然后重开终端再运行。
+> 如果提示没有权限修改客户端：打开 **系统设置 → 隐私与安全性 → App 管理**，允许你正在用的终端，然后重开终端再运行。客户端里的更新和卸载会打开系统自带的“终端”来完成，所以“终端”也需要这个权限。
 
 第一次安装会把官方客户端备份到 `~/Library/Application Support/BTR-Mac/backup/`（约 400 MB）。
 
@@ -38,14 +43,15 @@
 
 在客户端 **设置 → 线程撕裂者** 里：
 
-- **检查 BTR 更新**：同时对比原仓库的 BTR 版本和本仓库的 macOS 移植版本（`mac-version.json`），任何一边不同都会提示。点 **更新到 …**，确认后客户端会关闭，并打开“终端”完成更新，完成后自动重新打开客户端
-- **卸载 BTR**：确认后客户端会关闭，并打开“终端”用安装前的备份还原官方客户端，完成后重新打开
+- **检查 BTR 更新**：同时对比原仓库的 BTR 版本和本仓库的 macOS 移植版本（`mac-version.json`），任何一边不同都会提示。点 **更新到 …** 并确认
+- **卸载 BTR**：确认后用安装前的备份还原官方客户端
 
-更新和卸载都在“终端”里进行（需要终端有“App 管理”权限，见上面的安装说明），可以看到进度；失败时终端窗口会停留并显示错误。日志同时记在 `~/Library/Application Support/BTR-Mac/maintain.log`。
+确认后会先打开“终端”，然后客户端自动关闭；终端等客户端退出后完成更新或卸载，成功就重新打开客户端，失败时窗口停留并显示错误。终端需要“App 管理”权限（见上面的安装说明）。日志同时记在 `~/Library/Application Support/BTR-Mac/maintain.log`。
 
 也可以在终端里操作：
 
 ```bash
+bash ~/btr-mac/install-mac.sh            # 安装或更新（和 update 一样）
 bash ~/btr-mac/install-mac.sh update     # 更新
 bash ~/btr-mac/install-mac.sh uninstall  # 还原官方客户端
 bash ~/btr-mac/install-mac.sh status     # 查看状态
@@ -53,13 +59,13 @@ bash ~/btr-mac/install-mac.sh status     # 查看状态
 
 还原会用安装前的完整备份恢复官方客户端（包括苹果原签名），账号和设置不受影响。备份保留在 `~/Library/Application Support/BTR-Mac`，不需要可以手动删除。
 
-官方客户端自动更新后 BTR 可能不见了，在终端运行一次 `update` 即可。
+官方客户端自动更新后 BTR 可能不见了，在终端再运行一次安装命令即可。
 
 ## 和 Windows 版的区别
 
 | | Windows 版（原版） | macOS 版（本仓库） |
 |---|---|---|
-| 安装 | PowerShell 一行命令 | `git clone` + shell 脚本 |
+| 安装 | PowerShell 一行命令 | 终端两行命令（`git clone` + 安装脚本） |
 | 客户端内更新 / 卸载按钮 | 支持 | 支持（在“终端”里运行安装脚本，完成后重新打开客户端） |
 | 官方覆盖安装后的守护提醒 | 支持 | 不支持，需要手动重新运行安装 |
 | 签名 | 不涉及 | 改用本地签名 |
