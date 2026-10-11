@@ -2,7 +2,7 @@
 
 <img src="https://raw.githubusercontent.com/MrTangLuyao/Bilibili-thread-ripper/main/icons/icon-128.png" width="112" alt="线程撕裂者图标">
 
-# BTR Desktop for macOS
+# BTR Desktop for macOS（非官方）
 
 **Bilibili 线程撕裂者桌面版的 macOS 移植，适用于官方哔哩哔哩 macOS 客户端**
 
