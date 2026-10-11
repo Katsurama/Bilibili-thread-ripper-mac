@@ -31,7 +31,10 @@ while [ $# -gt 0 ]; do
 done
 
 notify() { [ -n "$FROM_APP" ] && osascript -e "display notification \"$1\" with title \"BTR 线程撕裂者\"" >/dev/null 2>&1 || true; }
-relaunch() { [ -n "$FROM_APP" ] && [ -d "$APP" ] && open "$APP" >/dev/null 2>&1 || true; }
+# 用 open 打开的应用会继承当前的环境变量。客户端算 .appInfo 时用的时区名称跟着 LANG 变（日语环境是
+# “日本標準時”），带着终端的 LANG 打开会和从 Dock 打开算出不同的值，被当成重新安装。所以去掉语言环境再打开。
+CLEAN_LOCALE="env -u LANG -u LC_ALL -u LC_CTYPE -u LC_MESSAGES -u LC_COLLATE -u LC_NUMERIC -u LC_TIME -u LC_MONETARY"
+relaunch() { [ -n "$FROM_APP" ] && [ -d "$APP" ] && $CLEAN_LOCALE open "$APP" >/dev/null 2>&1 || true; }
 say() { printf '\033[1;35m[BTR]\033[0m %s\n' "$*"; }
 die() {
   printf '\033[1;31m[BTR] %s\033[0m\n' "$*" >&2
@@ -59,7 +62,7 @@ if [ -n "$FROM_APP" ]; then
     printf 'for _ in $(seq 1 40); do pgrep -f %q >/dev/null 2>&1 || break; sleep 0.5; done\n' "$APP/Contents/"
     printf 'printf "\\n===== %%s %%s（终端）=====\\n" "$(date "+%%F %%T")" %q >> %q\n' "$ACTION" "$LOG"
     printf '/bin/bash %q %q 2>&1 | tee -a %q\n' "$HERE/install-mac.sh" "$ACTION" "$LOG"
-    printf 'if [ "${PIPESTATUS[0]}" -eq 0 ]; then open %q; exit 0; fi\n' "$APP"
+    printf 'if [ "${PIPESTATUS[0]}" -eq 0 ]; then %s open %q; exit 0; fi\n' "$CLEAN_LOCALE" "$APP"
     printf 'echo; read -r -p "BTR 操作失败，客户端没有重新打开。按回车关闭这个窗口" _\n'
   } > "$command"
   chmod +x "$command"
