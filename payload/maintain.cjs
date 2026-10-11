@@ -10,6 +10,14 @@ const { spawn } = require("child_process");
 const MANIFEST = "https://raw.githubusercontent.com/MrTangLuyao/Bilibili-thread-ripper-desktop/main/latest.json";
 const MAC_MANIFEST = "https://raw.githubusercontent.com/luitao666-arch/Bilibili-thread-ripper-mac/main/mac-version.json";
 const VERSION = /^\d+\.\d+\.\d+\.\d+-d[1-9]\d*$/, MAC_VERSION = /^\d+\.\d+\.\d+\.\d+$/;
+// GitHub raw files are cached for a few minutes on several CDN nodes, so a check can see an older
+// mac-version.json than the one installed. Only a higher macOS version counts as an update.
+function newerMac(remote, local) {
+  if (!MAC_VERSION.test(local || "")) return true;
+  const a = remote.split(".").map(Number), b = local.split(".").map(Number);
+  for (let i = 0; i < 4; i++) if (a[i] !== b[i]) return a[i] > b[i];
+  return false;
+}
 const INTERVAL = 30 * 60 * 1000, STARTUP = 1500;
 
 function trusted(event) {
@@ -59,9 +67,9 @@ function register(electron) {
     pending = Promise.all([getJson(net, MANIFEST), getJson(net, MAC_MANIFEST).catch(() => null)]).then(([value, mac]) => {
       if (!value || value.schema !== 1 || !VERSION.test(value.version)) throw Error("更新清单无效");
       const macVersion = mac?.schema === 1 && MAC_VERSION.test(mac.version) ? mac.version : null;
-      // Any difference counts, including a rollback, the same as the upstream rule.
+      // Upstream rule: any difference counts, including a rollback.
       const btrChanged = value.version !== installed.version;
-      const macChanged = macVersion !== null && macVersion !== installed.macVersion;
+      const macChanged = macVersion !== null && newerMac(macVersion, installed.macVersion);
       const found = [], label = [];
       if (btrChanged) { found.push(`BTR ${value.version}（当前 ${installed.version || "未知"}）`); label.push(value.version); }
       if (macChanged) { found.push(`macOS 移植 ${macVersion}（当前 ${installed.macVersion || "未知"}）`); label.push(`macOS ${macVersion}`); }
