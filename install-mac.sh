@@ -72,6 +72,36 @@ check_writable() {
   die "没有权限修改 ${APP}。请到 系统设置 → 隐私与安全性 → App 管理，允许你正在用的终端，然后重开终端再运行。"
 }
 
+# 官方客户端启动时用 Resources/app-update.yml 的 ctime 算 md5，和 resource/.appInfo 比对；
+# 不一致就当作重新安装：删掉 .version，设置恢复默认，重新下载热更新并提示重启。
+# 我们改动客户端会改变这个 ctime（内容不变），所以改动前如果两者一致，改动后替它写回新值。
+APPINFO_SYNC=""
+appinfo_file() {
+  local dir="$HOME/Library/Application Support/bilibili/resource"
+  [ -d "$APP/Contents/MacOS/versions" ] && dir="$APP/Contents/MacOS/versions"
+  printf '%s/.appInfo' "$dir"
+}
+appinfo_hash() {
+  local exe
+  exe=$(/usr/libexec/PlistBuddy -c "Print CFBundleExecutable" "$PLIST") || return 1
+  ELECTRON_RUN_AS_NODE=1 "$APP/Contents/MacOS/$exe" -e 'const s=require("fs").statSync(process.argv[1]).ctime.toString();process.stdout.write(require("crypto").createHash("md5").update(s).digest("hex"))' "$APP/Contents/Resources/app-update.yml" 2>/dev/null
+}
+remember_appinfo() {
+  local file current
+  file="$(appinfo_file)"
+  [ -f "$file" ] && [ -f "$APP/Contents/Resources/app-update.yml" ] || return 0
+  current="$(appinfo_hash || true)"
+  if [ -n "$current" ] && [ "$(cat "$file")" = "$current" ]; then APPINFO_SYNC=1; fi
+}
+sync_appinfo() {
+  [ -n "$APPINFO_SYNC" ] || return 0
+  local hash; hash="$(appinfo_hash || true)"
+  case "$hash" in
+    [0-9a-f]*) [ ${#hash} -eq 32 ] && printf '%s' "$hash" > "$(appinfo_file)" && say "已保留官方客户端的热更新状态和设置" ;;
+    *) say "注意：无法更新客户端版本记录，下次启动客户端可能会恢复默认设置" ;;
+  esac
+}
+
 asar_installed() { python3 -I "$PATCHER" status "$1" | python3 -I -c 'import json,sys;print("yes" if json.load(sys.stdin)["installed"] else "no")'; }
 
 make_backup() {
@@ -117,12 +147,13 @@ resign() {
 }
 
 install() {
-  check_app; check_writable; fetch_bundle; make_backup
+  check_app; check_writable; fetch_bundle; remember_appinfo; make_backup
   local tmp; mkdir -p "$DATA"; tmp="$(mktemp -d "$DATA/tmp.XXXXXX")"
   python3 -I "$PATCHER" patch "$BACKUP/Contents/Resources/app.asar" "$BUNDLE" "$tmp/app.asar" "$HERE"
   cp "$tmp/app.asar" "$ASAR.btr.tmp" && mv "$ASAR.btr.tmp" "$ASAR"
   rm -rf "$tmp"
   resign
+  sync_appinfo
   say "安装完成。打开客户端，在 设置 → 线程撕裂者 里调整；还原请运行 install-mac.sh uninstall"
   notify "BTR 已更新，正在重新打开客户端"
   relaunch
@@ -142,10 +173,12 @@ uninstall() {
   check_app
   [ -d "$BACKUP" ] || die "没有找到备份，无法还原。可以从官网重新下载安装官方客户端。"
   check_writable
+  remember_appinfo
   say "用备份还原官方客户端（保留原始苹果签名）"
   local parent; parent="$(dirname "$APP")"
   ditto "$BACKUP" "$parent/.btr-restore.app"
   rm -rf "$APP" && mv "$parent/.btr-restore.app" "$APP"
+  sync_appinfo
   say "已还原。账号和设置未改动。备份留在 ${BACKUP}，可手动删除。"
   notify "BTR 已卸载，正在重新打开官方客户端"
   relaunch

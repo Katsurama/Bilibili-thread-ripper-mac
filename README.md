@@ -80,6 +80,7 @@ bash ~/btr-mac/install-mac.sh status     # 查看状态
 - 需要授予终端“App 管理”权限才能修改 `/Applications` 里的应用。
 - 官方客户端自动更新可能覆盖掉 BTR，重新运行安装脚本即可。
 - 客户端内更新会 `git pull` 本仓库，并从原仓库拉取最新的 `dist/desktop.js`。
+- 官方客户端用 `Resources/app-update.yml` 的修改时间判断自己是否被重新安装，一旦判断为重装就会恢复默认设置并重新下载热更新。安装和卸载时脚本会同步这条记录（`~/Library/Application Support/bilibili/resource/.appInfo`），避免设置被重置。
 
 ## 致谢与许可
 
