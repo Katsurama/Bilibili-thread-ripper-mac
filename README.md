@@ -56,13 +56,13 @@ bash ~/btr-mac/install-mac.sh uninstall  # 还原官方客户端
 bash ~/btr-mac/install-mac.sh status     # 查看状态
 ```
 
-还原会用安装前的完整备份恢复官方客户端（包括苹果原签名），账号和设置不受影响。还原成功后会清理 BTR 留下的文件：`~/Library/Application Support/BTR-Mac` 里的备份、BTR 源码和日志都会删除，以后再安装时会重新备份。
+还原会用安装前的完整备份恢复官方客户端（包括苹果原签名），账号和设置不受影响。还原成功后会清理 BTR 留下的东西：
 
-卸载后只剩安装脚本本身。不再需要的话可以删除：
+- `~/Library/Application Support/BTR-Mac` 里的备份、BTR 源码和日志
+- 客户端缓存（`~/Library/Application Support/bilibili/resource`）里带 BTR 的客户端副本，换回官方版本
+- 安装脚本目录 `~/btr-mac`。如果里面有你自己的改动或文件，会保留并提示，不需要的话手动删除即可
 
-```bash
-rm -rf ~/btr-mac
-```
+以后再安装时会重新下载和备份。
 
 ## 常见问题
 

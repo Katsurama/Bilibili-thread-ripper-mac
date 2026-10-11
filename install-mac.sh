@@ -34,6 +34,7 @@ PATCHER="$HERE/btr_mac.py"
 ASAR="$APP/Contents/Resources/app.asar"
 PLIST="$APP/Contents/Info.plist"
 LOG="$DATA/maintain.log"
+CLIENT_RESOURCE="${BTR_CLIENT_RESOURCE:-$HOME/Library/Application Support/bilibili/resource}"
 
 ACTION="${1:-install}"; [ $# -gt 0 ] && shift
 FROM_APP=""; PULLED=""
@@ -105,7 +106,7 @@ check_writable() {
 # 函数都接收客户端路径，卸载时可以在还原副本挪回原位之前就算好新值，客户端不会看到不一致的状态。
 APPINFO_SYNC=""
 appinfo_file() {
-  local dir="$HOME/Library/Application Support/bilibili/resource"
+  local dir="$CLIENT_RESOURCE"
   [ -d "${1:-$APP}/Contents/MacOS/versions" ] && dir="${1:-$APP}/Contents/MacOS/versions"
   printf '%s/.appInfo' "$dir"
 }
@@ -223,14 +224,50 @@ uninstall() {
   rm -rf "$APP" && mv "$restore" "$APP"
   # 还原后的客户端就是备份本身的副本，确认它已就位且不含 BTR 后，清理 BTR 留下的文件；下次安装会重新备份。
   if [ -f "$ASAR" ] && [ "$(asar_installed "$ASAR")" = "no" ]; then
+    clean_client_cache
     cleanup_data
     say "已还原官方客户端，并清理了备份和 BTR 的数据。账号和设置未改动。"
-    say "安装脚本在 ${HERE}，不再需要的话可以删除：rm -rf $(printf '%q' "$HERE")"
+    remove_installer
   else
     say "已还原，但没能确认还原结果，备份保留在 ${BACKUP}"
   fi
   notify "BTR 已卸载，正在重新打开官方客户端"
   relaunch
+}
+
+# 客户端判定“重新安装”时，会把当时的 app.asar 复制进自己的缓存目录并从那里运行。
+# 如果那时装着 BTR，缓存里就是带 BTR 的副本，只还原 /Applications 的话卸载后 BTR 仍会被加载。
+# 同版本的换成备份里的官方 app.asar（就是官方客户端自己会放进去的那份），版本对不上的删掉让客户端重新获取。
+clean_client_cache() {
+  local file official="$BACKUP/Contents/Resources/app.asar" version official_version
+  [ -d "$CLIENT_RESOURCE" ] || return 0
+  official_version="$(asar_version "$official" || true)"
+  for file in "$CLIENT_RESOURCE"/*.asar; do
+    [ -f "$file" ] && [ "$(asar_installed "$file" 2>/dev/null || true)" = "yes" ] || continue
+    version="$(asar_version "$file" || true)"
+    if [ -n "$version" ] && [ "$version" = "$official_version" ] \
+      && cp "$official" "$file.btr.tmp" && mv "$file.btr.tmp" "$file"; then
+      say "客户端缓存里带 BTR 的副本已换回官方版本：$(basename "$file")"
+    else
+      rm -f "$file.btr.tmp" "$file" && say "删除了客户端缓存里带 BTR 的副本：$(basename "$file")"
+    fi
+  done
+}
+asar_version() { python3 -I "$PATCHER" status "$1" | python3 -I -c 'import json,sys;print(json.load(sys.stdin)["clientVersion"])'; }
+
+# 安装脚本目录是本仓库的干净克隆（没有改动、本地提交或自己的文件）时一并删除；否则保留并说明。
+# 脚本自己就在里面运行，删除已经打开的文件不影响它继续执行。
+remove_installer() {
+  local extra
+  if [ ! -d "$HERE/.git" ] || ! git -C "$HERE" remote get-url origin 2>/dev/null | grep -q 'Bilibili-thread-ripper-mac'; then
+    say "安装脚本在 ${HERE}，不再需要的话可以删除"; return 0
+  fi
+  extra="$(git -C "$HERE" status --porcelain --ignored 2>/dev/null | grep -v -e '__pycache__/$' -e '\.DS_Store$' || true)"
+  if [ -z "$extra" ] && [ -z "$(git -C "$HERE" log --oneline '@{upstream}..HEAD' 2>/dev/null || echo unknown)" ]; then
+    cd / && rm -rf "$HERE" && say "已删除安装脚本目录 ${HERE}，BTR 已完全卸载"
+  else
+    say "安装脚本目录 ${HERE} 里有你自己的改动或文件，没有删除；不需要的话可以手动删除"
+  fi
 }
 
 # 只删除 BTR 自己创建的东西，不整个删除 $DATA（BTR_DATA 可能被指到别处）。
