@@ -146,6 +146,16 @@ def mac_version(install_root):
     return version if isinstance(version, str) and re.fullmatch(r"\d+\.\d+\.\d+\.\d+", version) else None
 
 
+def upstream_license(bundle_path):
+    """LICENSE of the BTR Desktop checkout the bundle comes from (dist/desktop.js -> LICENSE)."""
+    path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(bundle_path))), "LICENSE")
+    try:
+        with open(path, encoding="utf-8") as file:
+            return file.read().strip()
+    except OSError:
+        return None
+
+
 def bundle_version(bundle):
     match = re.match(r"globalThis\.__BTR_DESKTOP_RELEASE__=(\{.*?\});", bundle.decode("utf-8"))
     return json.loads(match.group(1)).get("version") if match else None
@@ -165,8 +175,10 @@ def patch(original_path, bundle_path, output_path, install_root):
         raise ValueError("客户端已经包含 BTR 入口")
     archive.set(info["entry"], with_bootstrap(info["entry"], entry_text))
     preload = payload("preload.cjs")
-    if "__BTR_BUNDLE__" not in preload:
+    if "__BTR_BUNDLE__" not in preload or "__BTR_MAC_INFO__" not in preload:
         raise ValueError("preload.cjs 缺少注入位置")
+    mac_info = {"macVersion": mac_version(install_root), "btrVersion": bundle_version(bundle), "license": upstream_license(bundle_path)}
+    preload = preload.replace("__BTR_MAC_INFO__", json.dumps(mac_info, ensure_ascii=False))
     archive.set(BOOTSTRAP_FILE, payload("bootstrap.cjs"))
     archive.set(MAINTAIN_FILE, payload("maintain.cjs"))
     archive.set(PRELOAD_FILE, preload.replace("__BTR_BUNDLE__", json.dumps(bundle.decode("utf-8"))))

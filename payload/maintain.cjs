@@ -19,6 +19,12 @@ function newerMac(remote, local) {
   return false;
 }
 const INTERVAL = 30 * 60 * 1000, STARTUP = 1500;
+// The macOS notice on the settings page can open only these pages, in the default browser.
+const LINKS = {
+  repo: "https://github.com/luitao666-arch/Bilibili-thread-ripper-mac",
+  issues: "https://github.com/luitao666-arch/Bilibili-thread-ripper-mac/issues",
+  upstream: "https://github.com/MrTangLuyao/Bilibili-thread-ripper-desktop",
+};
 
 function trusted(event) {
   const frame = event.senderFrame;
@@ -45,7 +51,7 @@ function getJson(net, url) {
 }
 
 function register(electron) {
-  const { app, ipcMain, dialog, BrowserWindow, net } = electron;
+  const { app, ipcMain, dialog, BrowserWindow, net, shell } = electron;
   const installed = JSON.parse(fs.readFileSync(path.join(__dirname, "installed.json"), "utf8"));
   let pending = null, latest = null, checkedAt = 0, operation = "";
   let autoEnabled = null, timer = null, generation = 0, stopped = false;
@@ -149,6 +155,10 @@ function register(electron) {
     } catch (error) { return publish({ state: "error", message: String(error.message).slice(0, 200) }); }
     finally { if (!started) operation = ""; }
   }
+  ipcMain.handle("btr-desktop:open-link", (event, key) => {
+    if (!trusted(event) || !Object.hasOwn(LINKS, key)) throw Error("Untrusted link request");
+    return shell.openExternal(LINKS[key]);
+  });
   ipcMain.handle("btr-desktop:update-install", event => maintain(event, false));
   ipcMain.handle("btr-desktop:uninstall", event => maintain(event, true));
 }
