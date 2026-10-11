@@ -171,6 +171,8 @@ make_backup() {
   codesign --verify --deep --strict "$APP" 2>/dev/null || say "注意：当前客户端签名校验未通过，备份仍会继续"
   say "备份官方客户端到 ${BACKUP}（约 400 MB，只做一次）"
   mkdir -p "$(dirname "$BACKUP")"
+  # 上次备份中断留下的半成品要先删掉：ditto 会合并进已有目录，旧文件会混进备份。
+  rm -rf "$BACKUP.tmp"
   ditto "$APP" "$BACKUP.tmp" && mv "$BACKUP.tmp" "$BACKUP"
 }
 
@@ -194,7 +196,8 @@ resign() {
   local hash
   hash=$(python3 -I "$PATCHER" header-hash "$ASAR")
   /usr/libexec/PlistBuddy -c "Set :ElectronAsarIntegrity:Resources/app.asar:hash $hash" "$PLIST" 2>/dev/null || true
-  codesign --force --deep --sign - "$APP" 2>/dev/null
+  # 失败时不能让 set -e 悄悄退出：app.asar 已经换掉，签名不对的客户端打不开，必须告诉用户怎么还原。
+  codesign --force --deep --sign - "$APP" || die "重新签名失败，请运行 install-mac.sh uninstall 还原"
   codesign --verify --deep "$APP" || die "签名校验失败，请运行 install-mac.sh uninstall 还原"
   xattr -dr com.apple.quarantine "$APP" 2>/dev/null || true
 }
@@ -226,6 +229,15 @@ update() {
 uninstall() {
   check_app
   ensure_data_dir
+  # 当前客户端已经不含 BTR（比如重新装过官方客户端，可能比备份新）时不能用备份覆盖它，只清理 BTR 的文件。
+  if [ "$(asar_installed "$ASAR")" = "no" ]; then
+    clean_client_cache
+    cleanup_data
+    say "当前客户端不含 BTR，没有改动客户端，只清理了备份和 BTR 的数据"
+    notify "BTR 已卸载，正在重新打开官方客户端"
+    relaunch
+    return
+  fi
   [ -d "$BACKUP" ] || die "没有找到备份，无法还原。可以从官网重新下载安装官方客户端。"
   check_writable
   remember_appinfo force
