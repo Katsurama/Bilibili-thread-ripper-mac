@@ -10,7 +10,7 @@
 原版只支持 Windows。macOS 的官方客户端同样是 Electron 应用，结构和 Windows 版基本一致，所以可以用同样的方式接入：
 
 - 安装时从原仓库下载 BTR Desktop 的 `dist/desktop.js`（下载内核和设置界面），**这里不包含也不修改原作者的代码**
-- 在客户端的 `app.asar` 里加一个普通的 Electron preload，把 BTR 注入播放页面，播放器、字幕、弹幕都保持客户端原样
+- 在客户端的 `app.asar` 里加一个普通的 Electron preload，把 BTR 注入播放页面，播放器、字幕、弹幕都保持客户端原样（注入的代码在 [payload/](payload)）
 - 修改后用本地签名（ad-hoc）重新签名客户端
 - 安装前把整个官方客户端完整备份一份，可以一键还原
 
@@ -34,35 +34,33 @@
 
 第一次安装会把官方客户端备份到 `~/Library/Application Support/BTR-Mac/backup/`（约 400 MB）。
 
-## 更新
+## 更新和卸载
 
-BTR 有新版本，或者官方客户端更新后 BTR 不见了，都重新运行一次：
+在客户端 **设置 → 线程撕裂者** 里：
 
-```bash
-git -C ~/btr-mac pull
-bash ~/btr-mac/install-mac.sh
-```
+- **检查 BTR 更新**：对比原仓库的最新版本。有新版本时点 **更新到 …**，确认后客户端会自动关闭、更新、再重新打开
+- **卸载 BTR**：确认后客户端会自动关闭，用安装前的备份还原官方客户端，再重新打开
 
-## 还原
+后台过程的日志在 `~/Library/Application Support/BTR-Mac/maintain.log`。如果客户端本身没有修改应用的权限，会自动打开“终端”完成剩下的步骤。
 
-```bash
-bash ~/btr-mac/install-mac.sh uninstall
-```
-
-用安装前的完整备份恢复官方客户端（包括苹果原签名），账号和设置不受影响。还原后备份仍保留，可以手动删除 `~/Library/Application Support/BTR-Mac`。
-
-查看当前状态：
+也可以在终端里操作：
 
 ```bash
-bash ~/btr-mac/install-mac.sh status
+bash ~/btr-mac/install-mac.sh update     # 更新
+bash ~/btr-mac/install-mac.sh uninstall  # 还原官方客户端
+bash ~/btr-mac/install-mac.sh status     # 查看状态
 ```
+
+还原会用安装前的完整备份恢复官方客户端（包括苹果原签名），账号和设置不受影响。备份保留在 `~/Library/Application Support/BTR-Mac`，不需要可以手动删除。
+
+官方客户端自动更新后 BTR 可能不见了，在终端运行一次 `update` 即可。
 
 ## 和 Windows 版的区别
 
 | | Windows 版（原版） | macOS 版（本仓库） |
 |---|---|---|
 | 安装 | PowerShell 一行命令 | `git clone` + shell 脚本 |
-| 客户端内更新 / 卸载按钮 | 支持 | 不支持，按钮会提示到终端运行脚本 |
+| 客户端内更新 / 卸载按钮 | 支持 | 支持（后台运行安装脚本，完成后重新打开客户端） |
 | 官方覆盖安装后的守护提醒 | 支持 | 不支持，需要手动重新运行安装 |
 | 签名 | 不涉及 | 改用本地签名 |
 
@@ -81,6 +79,7 @@ bash ~/btr-mac/install-mac.sh status
 - 本地签名后，macOS 不再认为这是哔哩哔哩官方签名的应用。备份里保留了原版，随时可以还原。
 - 需要授予终端“App 管理”权限才能修改 `/Applications` 里的应用。
 - 官方客户端自动更新可能覆盖掉 BTR，重新运行安装脚本即可。
+- 客户端内更新会 `git pull` 本仓库，并从原仓库拉取最新的 `dist/desktop.js`。
 
 ## 致谢与许可
 

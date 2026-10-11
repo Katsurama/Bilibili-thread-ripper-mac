@@ -1,23 +1,27 @@
 #!/usr/bin/env python3
-"""BTR Desktop macOS prototype patcher.
+"""BTR Desktop macOS patcher.
 
 Adds the BTR Desktop bundle (dist/desktop.js from the Windows repo) to the official
 哔哩哔哩.app through an ordinary Electron preload, the same way the Windows build does.
 Only the standard library is used, so the system python3 (3.9+) is enough.
 
-  btr_mac.py patch  <original app.asar> <desktop.js> <output app.asar>
+  btr_mac.py patch  <original app.asar> <desktop.js> <output app.asar> <install root>
   btr_mac.py status <app.asar>
   btr_mac.py header-hash <app.asar>
 """
 import hashlib
 import json
+import os
+import re
 import struct
 import sys
 
 BOOTSTRAP_FILE = "btr-desktop/bootstrap.cjs"
 PRELOAD_FILE = "btr-desktop/preload.cjs"
+MAINTAIN_FILE = "btr-desktop/maintain.cjs"
 BUNDLE_FILE = "btr-desktop/desktop.js"
 INSTALLED_FILE = "btr-desktop/installed.json"
+PAYLOAD_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "payload")
 
 
 def sha(data):
@@ -126,48 +130,17 @@ def with_bootstrap(entry, text):
     return head + bootstrap_prefix(entry) + text[len(head):]
 
 
-# Main process: only add the preload. No updater, guard or child processes on macOS.
-BOOTSTRAP = r'''"use strict";
-const { app, session } = require("electron");
-const path = require("path");
-const preload = path.join(__dirname, "preload.cjs");
-function attach(target) {
-  try {
-    const existing = target.getPreloads();
-    if (!existing.includes(preload)) target.setPreloads([...existing, preload]);
-  } catch (error) { console.error("BTR preload:", error.message); }
-}
-app.on("session-created", attach);
-app.whenReady().then(() => attach(session.defaultSession)).catch(error => console.error("BTR preload:", error.message));
-'''
-
-# Renderer preload: same page filter and injection as the Windows build. The update and
-# uninstall buttons in the BTR settings page get a fixed answer instead of an IPC call.
-PRELOAD_TEMPLATE = r'''"use strict";
-(() => {
-if (!process.isMainFrame || location.origin !== "https://bilipc.bilibili.com" || !/^\/(index|player)\.html$/.test(location.pathname)) return;
-const channel = "__BTR_DESKTOP_UPDATE__";
-const send = result => window.postMessage({channel, type: "result", result}, location.origin);
-window.addEventListener("message", event => {
-  if (event.source !== window || event.data?.channel !== channel) return;
-  if (event.data.type === "check") send({state: "not-configured", message: "macOS 原型版不支持客户端内更新，请重新运行 install-mac.sh"});
-});
-document.addEventListener("click", event => {
-  if (!event.isTrusted || !event.target.closest?.("#btr-desktop-settings")) return;
-  const button = event.target.closest?.("#btr-desktop-install-update,#btr-desktop-uninstall");
-  if (!button || button.disabled) return;
-  event.stopPropagation();
-  send({state: "error", message: button.id === "btr-desktop-uninstall" ? "请在终端运行 install-mac.sh uninstall 来卸载" : "请在终端重新运行 install-mac.sh 来更新"});
-}, true);
-const code = __BUNDLE__;
-let injected = false;
-function inject() { if (injected || !document.documentElement) return; injected = true; observer.disconnect(); const script = document.createElement("script"); script.textContent = code; (document.head || document.documentElement).appendChild(script); script.remove(); }
-const observer = new MutationObserver(inject); observer.observe(document, {childList: true, subtree: true}); inject();
-})();
-'''
+def payload(name):
+    with open(os.path.join(PAYLOAD_DIR, name), encoding="utf-8") as file:
+        return file.read()
 
 
-def patch(original_path, bundle_path, output_path):
+def bundle_version(bundle):
+    match = re.match(r"globalThis\.__BTR_DESKTOP_RELEASE__=(\{.*?\});", bundle.decode("utf-8"))
+    return json.loads(match.group(1)).get("version") if match else None
+
+
+def patch(original_path, bundle_path, output_path, install_root):
     original = open(original_path, "rb").read()
     bundle = open(bundle_path, "rb").read()
     archive = Asar(original)
@@ -180,10 +153,14 @@ def patch(original_path, bundle_path, output_path):
     if BOOTSTRAP_FILE in entry_text:
         raise ValueError("客户端已经包含 BTR 入口")
     archive.set(info["entry"], with_bootstrap(info["entry"], entry_text))
-    archive.set(BOOTSTRAP_FILE, BOOTSTRAP)
-    archive.set(PRELOAD_FILE, PRELOAD_TEMPLATE.replace("__BUNDLE__", json.dumps(bundle.decode("utf-8"))))
+    preload = payload("preload.cjs")
+    if "__BTR_BUNDLE__" not in preload:
+        raise ValueError("preload.cjs 缺少注入位置")
+    archive.set(BOOTSTRAP_FILE, payload("bootstrap.cjs"))
+    archive.set(MAINTAIN_FILE, payload("maintain.cjs"))
+    archive.set(PRELOAD_FILE, preload.replace("__BTR_BUNDLE__", json.dumps(bundle.decode("utf-8"))))
     archive.set(BUNDLE_FILE, bundle)
-    archive.set(INSTALLED_FILE, json.dumps({"schema": 1, "platform": "darwin", "clientVersion": info["clientVersion"], "originalSha256": sha(original), "payloadSha256": sha(bundle)}))
+    archive.set(INSTALLED_FILE, json.dumps({"schema": 1, "platform": "darwin", "version": bundle_version(bundle), "clientVersion": info["clientVersion"], "originalSha256": sha(original), "payloadSha256": sha(bundle), "installRoot": os.path.abspath(install_root)}, ensure_ascii=False))
     patched = archive.pack()
     verify = Asar(patched)
     if sha(verify.read(BUNDLE_FILE)) != sha(bundle) or BOOTSTRAP_FILE not in verify.text(info["entry"]):
@@ -193,13 +170,13 @@ def patch(original_path, bundle_path, output_path):
             raise ValueError("补丁自检失败：丢失 " + name)
     with open(output_path, "wb") as out:
         out.write(patched)
-    return {"state": "patched", "clientVersion": info["clientVersion"], "entry": info["entry"], "headerHash": sha(verify.header_bytes)}
+    return {"state": "patched", "version": bundle_version(bundle), "clientVersion": info["clientVersion"], "entry": info["entry"], "headerHash": sha(verify.header_bytes)}
 
 
 def main(argv):
     action = argv[1] if len(argv) > 1 else ""
-    if action == "patch" and len(argv) == 5:
-        result = patch(argv[2], argv[3], argv[4])
+    if action == "patch" and len(argv) == 6:
+        result = patch(argv[2], argv[3], argv[4], argv[5])
     elif action == "status" and len(argv) == 3:
         archive = Asar(open(argv[2], "rb").read())
         result = inspect(archive)
