@@ -14,7 +14,7 @@
 
 [**安装**](#-安装) · [设置](#️-设置) · [更新](#-更新) · [卸载](#-卸载) · [常见问题](#-常见问题) · [原项目](https://github.com/MrTangLuyao/Bilibili-thread-ripper-desktop)
 
-<img src="docs/images/system-settings.webp" alt="macOS 客户端设置页里的 BTR 线程撕裂者" width="49%"> <img src="docs/images/player-settings.webp" alt="macOS 客户端播放器设置里的线程撕裂者 CDN 和并发线程" width="49%">
+<img src="docs/images/system-settings.png" alt="macOS 客户端设置页里的 BTR Desktop for macOS" width="49%"> <img src="docs/images/player-settings.webp" alt="macOS 客户端播放器设置里的线程撕裂者 CDN 和并发线程" width="49%">
 
 </div>
 
@@ -52,7 +52,7 @@
    bash ~/btr-mac/install-mac.sh
    ```
 
-3. **从程序坞或启动台**打开客户端，在 **设置 → BTR 线程撕裂者** 里调整
+3. **从程序坞或启动台**打开客户端，在 **设置 → BTR Desktop for macOS** 里调整
 
 脚本每次都会先拉取本仓库和 BTR Desktop 的最新代码再安装，内容可以直接查看 [install-mac.sh](install-mac.sh)。第一次安装会把官方客户端备份到 `~/Library/Application Support/BTR-Mac/backup/`（约 400 MB），卸载时用它还原。
 
@@ -64,11 +64,11 @@
 
 ## ⚙️ 设置
 
-设置界面和原版完全相同，有两个入口，两边的设置同步：
+设置项和原版完全相同。设置页标题下面会显示 macOS 移植的版本、基于的 BTR Desktop 版本、问题反馈说明和原项目的 MIT 许可证。有两个入口，两边的设置同步：
 
 | 入口 | 可以调整 |
 | --- | --- |
-| **设置** 最上面的“BTR 线程撕裂者”（页首左图） | 全部设置，以及检查更新、卸载 |
+| **设置** 最上面的“BTR Desktop for macOS”（右侧目录里叫“BTR for macOS”，页首左图） | 全部设置，以及检查更新、卸载 |
 | 播放器 **齿轮 → 更多播放设置**（页首右图） | CDN 和线程数 |
 
 | 设置 | 默认 | 说明 |
@@ -84,11 +84,11 @@
 
 自定义 CDN、坏节点自动停用等功能的说明请看 [原项目的设置说明](https://github.com/MrTangLuyao/Bilibili-thread-ripper-desktop#️-设置)。
 
-想确认 BTR 在工作：在 **设置 → BTR 线程撕裂者** 打开 Debug，播放视频时会出现“已收到客户端播放地址”等提示。
+想确认 BTR 在工作：在 **设置 → BTR Desktop for macOS** 打开 Debug，播放视频时会出现“已收到客户端播放地址”等提示。
 
 ## 🔄 更新
 
-在 **设置 → BTR 线程撕裂者** 点 **检查 BTR 更新**（打开“自动检查 BTR 更新”时，有新版本也会直接显示在这里）。它同时检查原仓库的 BTR 新版本和本仓库的 macOS 移植新版本，有更新时点 **更新到 …** 并确认：会先打开“终端”，然后客户端自动关闭，终端里完成更新后重新打开客户端；失败时终端窗口停留并显示错误。
+在 **设置 → BTR Desktop for macOS** 点 **检查 BTR 更新**（打开“自动检查 BTR 更新”时，有新版本也会直接显示在这里）。它同时检查原仓库的 BTR 新版本和本仓库的 macOS 移植新版本，有更新时点 **更新到 …** 并确认：会先打开“终端”，然后客户端自动关闭，终端里完成更新后重新打开客户端；失败时终端窗口停留并显示错误。
 
 也可以 ⌘Q 退出客户端后在终端更新：
 
@@ -104,7 +104,7 @@ bash ~/btr-mac/install-mac.sh update
 
 ## 🧹 卸载
 
-在 **设置 → BTR 线程撕裂者** 点红色的 **卸载 BTR** 并确认，或者 ⌘Q 退出客户端后在终端运行：
+在 **设置 → BTR Desktop for macOS** 点红色的 **卸载 BTR** 并确认，或者 ⌘Q 退出客户端后在终端运行：
 
 ```bash
 bash ~/btr-mac/install-mac.sh uninstall
@@ -123,7 +123,7 @@ rm -rf ~/btr-mac
 
 ## ❓ 常见问题
 
-**设置里没有“BTR 线程撕裂者”**
+**设置里没有“BTR Desktop for macOS”**
 
 先确认 BTR 装上了：`bash ~/btr-mac/install-mac.sh status` 里 `installed` 不是 `null`。装上了还看不到，通常是客户端正在运行安装包自带的旧界面，还没装上官方热更新（BTR 的设置页需要新界面）。在客户端 **设置 → 关于哔哩哔哩** 里点 **检查更新**，或者重新打开几次客户端，等它提示“重启升级”后升级即可。
 

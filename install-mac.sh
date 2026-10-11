@@ -46,7 +46,7 @@ while [ $# -gt 0 ]; do
   esac
 done
 
-notify() { [ -n "$FROM_APP" ] && osascript -e "display notification \"$1\" with title \"BTR 线程撕裂者\"" >/dev/null 2>&1 || true; }
+notify() { [ -n "$FROM_APP" ] && osascript -e "display notification \"$1\" with title \"BTR Desktop for macOS\"" >/dev/null 2>&1 || true; }
 # 用 open 打开的应用会继承当前的环境变量。客户端算 .appInfo 时用的时区名称跟着 LANG 变（日语环境是
 # “日本標準時”），带着终端的 LANG 打开会和从 Dock 打开算出不同的值，被当成重新安装。所以去掉语言环境再打开。
 CLEAN_LOCALE="env -u LANG -u LC_ALL -u LC_CTYPE -u LC_MESSAGES -u LC_COLLATE -u LC_NUMERIC -u LC_TIME -u LC_MONETARY"
@@ -207,7 +207,7 @@ install() {
   rm -rf "$tmp"
   resign
   sync_appinfo
-  say "安装完成。打开客户端，在 设置 → BTR 线程撕裂者 里调整；还原请运行 install-mac.sh uninstall"
+  say "安装完成。打开客户端，在 设置 → BTR Desktop for macOS 里调整；还原请运行 install-mac.sh uninstall"
   notify "BTR 已更新，正在重新打开客户端"
   relaunch
 }
