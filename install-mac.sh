@@ -5,7 +5,8 @@
 #   ./install-mac.sh uninstall  还原官方客户端（用安装前的完整备份）
 #   ./install-mac.sh status     查看状态
 # 客户端设置页里的“安装更新 / 卸载 BTR”会以 --from-app <客户端进程号> 在后台调用本脚本：
-# 等客户端退出后执行，记录日志到 ~/Library/Application Support/BTR-Mac/maintain.log，完成后重新打开客户端。
+# 等客户端退出后，在“终端”里运行同一个操作（输出同时记到 ~/Library/Application Support/BTR-Mac/maintain.log），
+# 成功后重新打开客户端，失败时终端窗口停留显示错误。
 # 环境变量：BTR_APP=客户端路径  BTR_REPO=本地 BTR Desktop 仓库  BTR_REF=分支或标签（默认 main）
 set -euo pipefail
 
@@ -38,13 +39,31 @@ die() {
   exit 1
 }
 
-# 从客户端里调用时没有终端窗口：输出写日志，等客户端完全退出再动手。
+# 从客户端里调用时：等客户端完全退出，然后把操作交给“终端”。
+# 由客户端启动的后台进程在客户端退出后会被系统悄无声息地结束（日志停在半路、客户端也不会被重新打开），
+# 而且修改 /Applications 需要的“App 管理”权限用户是给终端授的。终端里也能看到进度和错误。
 if [ -n "$FROM_APP" ]; then
   mkdir -p "$DATA"; exec >>"$LOG" 2>&1
-  printf '\n===== %s %s =====\n' "$(date '+%F %T')" "$ACTION"
+  printf '\n===== %s %s（客户端发起）=====\n' "$(date '+%F %T')" "$ACTION"
   case "$FROM_APP" in *[!0-9]*|"") die "无效的客户端进程号" ;; esac
   for _ in $(seq 1 120); do kill -0 "$FROM_APP" 2>/dev/null || break; sleep 0.5; done
   for _ in $(seq 1 40); do pgrep -f "$APP/Contents/" >/dev/null 2>&1 || break; sleep 0.5; done
+  command="$DATA/run-in-terminal.command"
+  {
+    printf '#!/bin/bash\n'
+    # 终端里是全新的环境，把用户指定的路径带过去。
+    for name in BTR_APP BTR_DATA BTR_REPO BTR_REF; do
+      [ -n "${!name:-}" ] && printf 'export %s=%q\n' "$name" "${!name}"
+    done
+    printf 'printf "\\n===== %%s %%s（终端）=====\\n" "$(date "+%%F %%T")" %q >> %q\n' "$ACTION" "$LOG"
+    printf '/bin/bash %q %q 2>&1 | tee -a %q\n' "$HERE/install-mac.sh" "$ACTION" "$LOG"
+    printf 'if [ "${PIPESTATUS[0]}" -eq 0 ]; then open %q; exit 0; fi\n' "$APP"
+    printf 'echo; read -r -p "BTR 操作失败，客户端没有重新打开。按回车关闭这个窗口" _\n'
+  } > "$command"
+  chmod +x "$command"
+  say "在终端里继续：$command"
+  open -a Terminal "$command" || die "无法打开终端，请手动运行 install-mac.sh $ACTION"
+  exit 0
 fi
 
 check_app() {
@@ -52,23 +71,10 @@ check_app() {
   if pgrep -f "$APP/Contents/MacOS/" >/dev/null 2>&1; then die "请先完全退出哔哩哔哩客户端（⌘Q）再运行"; fi
 }
 
-# 修改 /Applications 里的应用需要“App 管理”权限。从客户端发起时如果没有权限，
-# 改为在“终端”里运行同一个命令（用户给终端授过权），完成后由终端重新打开客户端。
+# 修改 /Applications 里的应用需要“App 管理”权限。
 check_writable() {
   local probe="$APP/Contents/Resources/.btr-write-test"
   if ( : > "$probe" ) 2>/dev/null; then rm -f "$probe"; return; fi
-  if [ -n "$FROM_APP" ]; then
-    local command="$DATA/run-in-terminal.command"
-    {
-      printf '#!/bin/bash\n'
-      printf '/bin/bash %q %q --pulled && open %q\n' "$HERE/install-mac.sh" "$ACTION" "$APP"
-      printf 'echo; read -r -p "按回车关闭这个窗口" _\n'
-    } > "$command"
-    chmod +x "$command"
-    notify "需要在终端里完成，已为你打开终端"
-    open -a Terminal "$command" || die "无法打开终端，请手动运行 install-mac.sh $ACTION"
-    exit 0
-  fi
   die "没有权限修改 ${APP}。请到 系统设置 → 隐私与安全性 → App 管理，允许你正在用的终端，然后重开终端再运行。"
 }
 
