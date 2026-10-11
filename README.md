@@ -4,7 +4,7 @@
 
 # BTR Desktop for macOS（非官方）
 
-**Bilibili 线程撕裂者桌面版的 macOS 移植，适用于官方哔哩哔哩 macOS 客户端**
+**[Bilibili 线程撕裂者桌面版](https://github.com/MrTangLuyao/Bilibili-thread-ripper-desktop) 的 macOS 移植，适用于官方哔哩哔哩 macOS 客户端**
 
 把线程撕裂者带到官方 macOS 客户端里，原本的播放器、字幕、弹幕和快捷键都保留
 
