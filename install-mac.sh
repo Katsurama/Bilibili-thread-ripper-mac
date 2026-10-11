@@ -10,7 +10,22 @@
 # 环境变量：BTR_APP=客户端路径  BTR_REPO=本地 BTR Desktop 仓库  BTR_REF=分支或标签（默认 main）
 set -euo pipefail
 
-APP="${BTR_APP:-/Applications/哔哩哔哩.app}"
+# 找客户端：BTR_APP 指定的路径 → 两个“应用程序”文件夹里的 哔哩哔哩.app → Spotlight 按 bundle id 找。
+find_app() {
+  local candidate
+  if [ -n "${BTR_APP:-}" ]; then printf '%s' "$BTR_APP"; return; fi
+  for candidate in "/Applications/哔哩哔哩.app" "$HOME/Applications/哔哩哔哩.app"; do
+    if [ -d "$candidate" ]; then printf '%s' "$candidate"; return; fi
+  done
+  while IFS= read -r candidate; do
+    case "$candidate" in
+      */.btr-restore.app) ;;
+      /Applications/*.app|"$HOME"/Applications/*.app) printf '%s' "$candidate"; return ;;
+    esac
+  done < <(mdfind "kMDItemCFBundleIdentifier == 'com.bilibili.bilibiliPC'" 2>/dev/null)
+  printf '%s' "/Applications/哔哩哔哩.app"
+}
+APP="$(find_app)"
 DATA="${BTR_DATA:-$HOME/Library/Application Support/BTR-Mac}"
 BACKUP="$DATA/backup/$(basename "$APP")"
 REPO_URL="https://github.com/MrTangLuyao/Bilibili-thread-ripper-desktop"
@@ -53,8 +68,9 @@ if [ -n "$FROM_APP" ]; then
   command="$DATA/run-in-terminal.command"
   {
     printf '#!/bin/bash\n'
-    # 终端里是全新的环境，把用户指定的路径带过去。
-    for name in BTR_APP BTR_DATA BTR_REPO BTR_REF; do
+    # 终端里是全新的环境，把客户端路径和用户指定的设置带过去。
+    printf 'export BTR_APP=%q\n' "$APP"
+    for name in BTR_DATA BTR_REPO BTR_REF; do
       [ -n "${!name:-}" ] && printf 'export %s=%q\n' "$name" "${!name}"
     done
     printf 'echo "等待哔哩哔哩客户端退出…"\n'
@@ -72,7 +88,7 @@ if [ -n "$FROM_APP" ]; then
 fi
 
 check_app() {
-  [ -f "$ASAR" ] || die "找不到客户端：${APP}（可用 BTR_APP=/path/to/哔哩哔哩.app 指定）"
+  [ -f "$ASAR" ] || die "找不到哔哩哔哩客户端（${APP}）。请先从官网安装客户端；装在别处的话，用 BTR_APP=/path/to/哔哩哔哩.app 指定"
   if pgrep -f "$APP/Contents/MacOS/" >/dev/null 2>&1; then die "请先完全退出哔哩哔哩客户端（⌘Q）再运行"; fi
 }
 
