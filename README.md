@@ -57,7 +57,7 @@ bash ~/btr-mac/install-mac.sh uninstall  # 还原官方客户端
 bash ~/btr-mac/install-mac.sh status     # 查看状态
 ```
 
-还原会用安装前的完整备份恢复官方客户端（包括苹果原签名），账号和设置不受影响。备份保留在 `~/Library/Application Support/BTR-Mac`，不需要可以手动删除。
+还原会用安装前的完整备份恢复官方客户端（包括苹果原签名），账号和设置不受影响。还原成功后备份会自动删除，以后再安装时会重新备份。
 
 官方客户端自动更新后 BTR 可能不见了，在终端再运行一次安装命令即可。
 

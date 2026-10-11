@@ -205,7 +205,12 @@ uninstall() {
   xattr -dr com.apple.quarantine "$restore" 2>/dev/null || true
   sync_appinfo "$restore"
   rm -rf "$APP" && mv "$restore" "$APP"
-  say "已还原。账号和设置未改动。备份留在 ${BACKUP}，可手动删除。"
+  # 还原后的客户端就是备份本身的副本，确认它已就位且不含 BTR 后删除备份；下次安装会重新备份。
+  if [ -f "$ASAR" ] && [ "$(asar_installed "$ASAR")" = "no" ]; then
+    rm -rf "$BACKUP" && say "已还原，并删除了备份（下次安装会重新备份）。账号和设置未改动。"
+  else
+    say "已还原，但没能确认还原结果，备份保留在 ${BACKUP}"
+  fi
   notify "BTR 已卸载，正在重新打开官方客户端"
   relaunch
 }
