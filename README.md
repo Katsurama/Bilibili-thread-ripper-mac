@@ -14,6 +14,8 @@
 
 [**安装**](#-安装) · [设置](#️-设置) · [更新](#-更新) · [卸载](#-卸载) · [常见问题](#-常见问题) · [原项目](https://github.com/MrTangLuyao/Bilibili-thread-ripper-desktop)
 
+<img src="docs/images/system-settings.webp" alt="macOS 客户端设置页里的 BTR 线程撕裂者" width="49%"> <img src="docs/images/player-settings.webp" alt="macOS 客户端播放器设置里的线程撕裂者 CDN 和并发线程" width="49%">
+
 </div>
 
 > [!WARNING]
@@ -64,8 +66,8 @@
 
 | 入口 | 可以调整 |
 | --- | --- |
-| **设置** 最上面的“BTR 线程撕裂者” | 全部设置，以及检查更新、卸载 |
-| 播放器 **齿轮 → 更多播放设置** | CDN 和线程数 |
+| **设置** 最上面的“BTR 线程撕裂者”（页首左图） | 全部设置，以及检查更新、卸载 |
+| 播放器 **齿轮 → 更多播放设置**（页首右图） | CDN 和线程数 |
 
 | 设置 | 默认 | 说明 |
 | --- | --- | --- |
