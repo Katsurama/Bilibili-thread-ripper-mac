@@ -82,12 +82,13 @@ appinfo_file() {
   [ -d "${1:-$APP}/Contents/MacOS/versions" ] && dir="${1:-$APP}/Contents/MacOS/versions"
   printf '%s/.appInfo' "$dir"
 }
-# 以 Node 模式运行客户端自带的 Electron 计算。10 秒超时，避免卡住时整个脚本停在这里、
-# 客户端也不会被重新打开（用户手动打开就会在同步前触发“重装”逻辑）。
+# 以 Node 模式运行 $APP 当前那份客户端自带的 Electron，计算参数里那份客户端的值。
+# 不能执行刚从备份复制出来的客户端：系统安全策略会拒绝运行它，连带脚本中断、还原做到一半。
+# 10 秒超时，避免卡住时整个脚本停在这里。
 appinfo_hash() {
   local app="${1:-$APP}" exe
-  exe=$(/usr/libexec/PlistBuddy -c "Print CFBundleExecutable" "$app/Contents/Info.plist") || return 1
-  ELECTRON_RUN_AS_NODE=1 /usr/bin/perl -e 'alarm shift; exec @ARGV or exit 127' 10 "$app/Contents/MacOS/$exe" -e 'const s=require("fs").statSync(process.argv[1]).ctime.toString();process.stdout.write(require("crypto").createHash("md5").update(s).digest("hex"))' "$app/Contents/Resources/app-update.yml" </dev/null 2>/dev/null
+  exe=$(/usr/libexec/PlistBuddy -c "Print CFBundleExecutable" "$PLIST") || return 1
+  ELECTRON_RUN_AS_NODE=1 /usr/bin/perl -e 'alarm shift; exec @ARGV or exit 127' 10 "$APP/Contents/MacOS/$exe" -e 'const s=require("fs").statSync(process.argv[1]).ctime.toString();process.stdout.write(require("crypto").createHash("md5").update(s).digest("hex"))' "$app/Contents/Resources/app-update.yml" </dev/null 2>/dev/null
 }
 # 参数 force：不比对，只要 .appInfo 存在就同步（卸载时用：当前客户端是我们改过的，不一致也是我们造成的）。
 remember_appinfo() {
