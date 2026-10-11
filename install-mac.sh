@@ -205,14 +205,24 @@ uninstall() {
   xattr -dr com.apple.quarantine "$restore" 2>/dev/null || true
   sync_appinfo "$restore"
   rm -rf "$APP" && mv "$restore" "$APP"
-  # 还原后的客户端就是备份本身的副本，确认它已就位且不含 BTR 后删除备份；下次安装会重新备份。
+  # 还原后的客户端就是备份本身的副本，确认它已就位且不含 BTR 后，清理 BTR 留下的文件；下次安装会重新备份。
   if [ -f "$ASAR" ] && [ "$(asar_installed "$ASAR")" = "no" ]; then
-    rm -rf "$BACKUP" && say "已还原，并删除了备份（下次安装会重新备份）。账号和设置未改动。"
+    cleanup_data
+    say "已还原官方客户端，并清理了备份和 BTR 的数据。账号和设置未改动。"
+    say "安装脚本在 ${HERE}，不再需要的话可以删除：rm -rf $(printf '%q' "$HERE")"
   else
     say "已还原，但没能确认还原结果，备份保留在 ${BACKUP}"
   fi
   notify "BTR 已卸载，正在重新打开官方客户端"
   relaunch
+}
+
+# 只删除 BTR 自己创建的东西，不整个删除 $DATA（BTR_DATA 可能被指到别处）。
+# 从客户端发起时终端正在运行 run-in-terminal.command 并往 maintain.log 写；删掉文件不影响已经打开的它们。
+cleanup_data() {
+  rm -rf "$DATA/backup" "$DATA/src" "$DATA"/tmp.* "$DATA/run-in-terminal.command" "$DATA/maintain.log"
+  rm -rf "$(dirname "$APP")/.btr-restore.app" "$ASAR.btr.tmp"
+  rmdir "$DATA" 2>/dev/null || true
 }
 
 status() {

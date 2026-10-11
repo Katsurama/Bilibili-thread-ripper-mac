@@ -121,7 +121,7 @@ function register(electron) {
       const result = remove ? null : await inspect();
       if (!remove && result.state !== "available") return result;
       const options = remove
-        ? { type: "warning", title: "卸载 BTR", message: "确定卸载 BTR？", detail: "将关闭哔哩哔哩，在“终端”里用安装前的备份还原官方客户端，完成后重新打开并删除备份。不会删除账号、缓存和个人设置。", buttons: ["卸载 BTR", "取消"], defaultId: 1, cancelId: 1, noLink: true }
+        ? { type: "warning", title: "卸载 BTR", message: "确定卸载 BTR？", detail: "将关闭哔哩哔哩，在“终端”里用安装前的备份还原官方客户端，完成后重新打开，并删除备份和 BTR 的数据。不会删除账号、缓存和个人设置。", buttons: ["卸载 BTR", "取消"], defaultId: 1, cancelId: 1, noLink: true }
         : { type: "question", title: "检测到新的 BTR 线程撕裂者更新", message: `版本 ${result.manifest.version}`, detail: "将从 BTR Desktop 官方仓库获取新版本，并更新 macOS 安装脚本。确认后会关闭哔哩哔哩，在“终端”里完成更新，完成后自动重新打开。", buttons: ["安装更新", "取消"], defaultId: 1, cancelId: 1, noLink: true };
       publish({ state: "confirming", message: remove ? "请确认是否卸载 BTR" : "请确认是否安装更新" });
       const parent = BrowserWindow.fromWebContents(event.sender);
