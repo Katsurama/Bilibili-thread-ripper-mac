@@ -3,11 +3,13 @@
 // process checks the upstream manifest, confirms with a dialog, starts install-mac.sh in the
 // background and quits the client. The script waits for the client to exit, does the work and
 // opens the client again. IPC channel names and result states match the Windows build, so the
-// shared settings page works unchanged.
+// shared settings page works unchanged. Besides the upstream BTR manifest it also reads this
+// repository's mac-version.json, so changes to the macOS port are offered as updates too.
 const path = require("path"), fs = require("fs");
 const { spawn } = require("child_process");
 const MANIFEST = "https://raw.githubusercontent.com/MrTangLuyao/Bilibili-thread-ripper-desktop/main/latest.json";
-const VERSION = /^\d+\.\d+\.\d+\.\d+-d[1-9]\d*$/;
+const MAC_MANIFEST = "https://raw.githubusercontent.com/luitao666-arch/Bilibili-thread-ripper-mac/main/mac-version.json";
+const VERSION = /^\d+\.\d+\.\d+\.\d+-d[1-9]\d*$/, MAC_VERSION = /^\d+\.\d+\.\d+\.\d+$/;
 const INTERVAL = 30 * 60 * 1000, STARTUP = 1500;
 
 function trusted(event) {
@@ -53,10 +55,19 @@ function register(electron) {
   async function inspect() {
     if (pending) return pending;
     if (latest && Date.now() - checkedAt < 3000) return latest;
-    pending = getJson(net, MANIFEST).then(value => {
+    // The macOS manifest is optional: when it cannot be read, the upstream result still counts.
+    pending = Promise.all([getJson(net, MANIFEST), getJson(net, MAC_MANIFEST).catch(() => null)]).then(([value, mac]) => {
       if (!value || value.schema !== 1 || !VERSION.test(value.version)) throw Error("更新清单无效");
-      const different = value.version !== installed.version;
-      latest = { state: different ? "available" : "current", manifest: { version: value.version }, message: different ? `发现 ${value.version}（当前 ${installed.version || "未知"}）` : "当前已是最新版本" };
+      const macVersion = mac?.schema === 1 && MAC_VERSION.test(mac.version) ? mac.version : null;
+      // Any difference counts, including a rollback, the same as the upstream rule.
+      const btrChanged = value.version !== installed.version;
+      const macChanged = macVersion !== null && macVersion !== installed.macVersion;
+      const found = [], label = [];
+      if (btrChanged) { found.push(`BTR ${value.version}（当前 ${installed.version || "未知"}）`); label.push(value.version); }
+      if (macChanged) { found.push(`macOS 移植 ${macVersion}（当前 ${installed.macVersion || "未知"}）`); label.push(`macOS ${macVersion}`); }
+      latest = found.length
+        ? { state: "available", manifest: { version: label.join(" + ") }, message: `发现 ${found.join("，")}` }
+        : { state: "current", manifest: { version: value.version }, message: "当前已是最新版本" };
       checkedAt = Date.now();
       return latest;
     }).finally(() => { pending = null; });

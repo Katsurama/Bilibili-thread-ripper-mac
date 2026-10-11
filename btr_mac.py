@@ -135,6 +135,17 @@ def payload(name):
         return file.read()
 
 
+def mac_version(install_root):
+    """Version of this macOS port from mac-version.json, recorded so the client can offer updates."""
+    try:
+        with open(os.path.join(install_root, "mac-version.json"), encoding="utf-8") as file:
+            value = json.load(file)
+    except (OSError, ValueError):
+        return None
+    version = value.get("version") if isinstance(value, dict) and value.get("schema") == 1 else None
+    return version if isinstance(version, str) and re.fullmatch(r"\d+\.\d+\.\d+\.\d+", version) else None
+
+
 def bundle_version(bundle):
     match = re.match(r"globalThis\.__BTR_DESKTOP_RELEASE__=(\{.*?\});", bundle.decode("utf-8"))
     return json.loads(match.group(1)).get("version") if match else None
@@ -160,7 +171,7 @@ def patch(original_path, bundle_path, output_path, install_root):
     archive.set(MAINTAIN_FILE, payload("maintain.cjs"))
     archive.set(PRELOAD_FILE, preload.replace("__BTR_BUNDLE__", json.dumps(bundle.decode("utf-8"))))
     archive.set(BUNDLE_FILE, bundle)
-    archive.set(INSTALLED_FILE, json.dumps({"schema": 1, "platform": "darwin", "version": bundle_version(bundle), "clientVersion": info["clientVersion"], "originalSha256": sha(original), "payloadSha256": sha(bundle), "installRoot": os.path.abspath(install_root)}, ensure_ascii=False))
+    archive.set(INSTALLED_FILE, json.dumps({"schema": 1, "platform": "darwin", "version": bundle_version(bundle), "macVersion": mac_version(install_root), "clientVersion": info["clientVersion"], "originalSha256": sha(original), "payloadSha256": sha(bundle), "installRoot": os.path.abspath(install_root)}, ensure_ascii=False))
     patched = archive.pack()
     verify = Asar(patched)
     if sha(verify.read(BUNDLE_FILE)) != sha(bundle) or BOOTSTRAP_FILE not in verify.text(info["entry"]):
@@ -170,7 +181,7 @@ def patch(original_path, bundle_path, output_path, install_root):
             raise ValueError("补丁自检失败：丢失 " + name)
     with open(output_path, "wb") as out:
         out.write(patched)
-    return {"state": "patched", "version": bundle_version(bundle), "clientVersion": info["clientVersion"], "entry": info["entry"], "headerHash": sha(verify.header_bytes)}
+    return {"state": "patched", "version": bundle_version(bundle), "macVersion": mac_version(install_root), "clientVersion": info["clientVersion"], "entry": info["entry"], "headerHash": sha(verify.header_bytes)}
 
 
 def main(argv):
