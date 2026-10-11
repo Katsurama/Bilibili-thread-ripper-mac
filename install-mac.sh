@@ -75,31 +75,38 @@ check_writable() {
 # 官方客户端启动时用 Resources/app-update.yml 的 ctime 算 md5，和 resource/.appInfo 比对；
 # 不一致就当作重新安装：删掉 .version，设置恢复默认，重新下载热更新并提示重启。
 # 我们改动客户端会改变这个 ctime（内容不变），所以改动前如果两者一致，改动后替它写回新值。
+# 函数都接收客户端路径，卸载时可以在还原副本挪回原位之前就算好新值，客户端不会看到不一致的状态。
 APPINFO_SYNC=""
 appinfo_file() {
   local dir="$HOME/Library/Application Support/bilibili/resource"
-  [ -d "$APP/Contents/MacOS/versions" ] && dir="$APP/Contents/MacOS/versions"
+  [ -d "${1:-$APP}/Contents/MacOS/versions" ] && dir="${1:-$APP}/Contents/MacOS/versions"
   printf '%s/.appInfo' "$dir"
 }
+# 以 Node 模式运行客户端自带的 Electron 计算。10 秒超时，避免卡住时整个脚本停在这里、
+# 客户端也不会被重新打开（用户手动打开就会在同步前触发“重装”逻辑）。
 appinfo_hash() {
-  local exe
-  exe=$(/usr/libexec/PlistBuddy -c "Print CFBundleExecutable" "$PLIST") || return 1
-  ELECTRON_RUN_AS_NODE=1 "$APP/Contents/MacOS/$exe" -e 'const s=require("fs").statSync(process.argv[1]).ctime.toString();process.stdout.write(require("crypto").createHash("md5").update(s).digest("hex"))' "$APP/Contents/Resources/app-update.yml" 2>/dev/null
+  local app="${1:-$APP}" exe
+  exe=$(/usr/libexec/PlistBuddy -c "Print CFBundleExecutable" "$app/Contents/Info.plist") || return 1
+  ELECTRON_RUN_AS_NODE=1 /usr/bin/perl -e 'alarm shift; exec @ARGV or exit 127' 10 "$app/Contents/MacOS/$exe" -e 'const s=require("fs").statSync(process.argv[1]).ctime.toString();process.stdout.write(require("crypto").createHash("md5").update(s).digest("hex"))' "$app/Contents/Resources/app-update.yml" </dev/null 2>/dev/null
 }
+# 参数 force：不比对，只要 .appInfo 存在就同步（卸载时用：当前客户端是我们改过的，不一致也是我们造成的）。
 remember_appinfo() {
   local file current
   file="$(appinfo_file)"
   [ -f "$file" ] && [ -f "$APP/Contents/Resources/app-update.yml" ] || return 0
+  if [ "${1:-}" = force ]; then APPINFO_SYNC=1; return 0; fi
   current="$(appinfo_hash || true)"
-  if [ -n "$current" ] && [ "$(cat "$file")" = "$current" ]; then APPINFO_SYNC=1; fi
+  if [ -n "$current" ] && [ "$(cat "$file")" = "$current" ]; then APPINFO_SYNC=1
+  else say "注意：客户端版本记录与当前客户端不一致（可能还没启动过），不做同步"; fi
 }
 sync_appinfo() {
   [ -n "$APPINFO_SYNC" ] || return 0
-  local hash; hash="$(appinfo_hash || true)"
-  case "$hash" in
-    [0-9a-f]*) [ ${#hash} -eq 32 ] && printf '%s' "$hash" > "$(appinfo_file)" && say "已保留官方客户端的热更新状态和设置" ;;
-    *) say "注意：无法更新客户端版本记录，下次启动客户端可能会恢复默认设置" ;;
-  esac
+  local app="${1:-$APP}" hash; hash="$(appinfo_hash "$app" || true)"
+  if [[ "$hash" =~ ^[0-9a-f]{32}$ ]]; then
+    printf '%s' "$hash" > "$(appinfo_file "$app")" && say "已保留官方客户端的热更新状态和设置"
+  else
+    say "注意：无法更新客户端版本记录，下次启动客户端可能会恢复默认设置"
+  fi
 }
 
 asar_installed() { python3 -I "$PATCHER" status "$1" | python3 -I -c 'import json,sys;print("yes" if json.load(sys.stdin)["installed"] else "no")'; }
@@ -173,12 +180,16 @@ uninstall() {
   check_app
   [ -d "$BACKUP" ] || die "没有找到备份，无法还原。可以从官网重新下载安装官方客户端。"
   check_writable
-  remember_appinfo
+  remember_appinfo force
   say "用备份还原官方客户端（保留原始苹果签名）"
-  local parent; parent="$(dirname "$APP")"
-  ditto "$BACKUP" "$parent/.btr-restore.app"
-  rm -rf "$APP" && mv "$parent/.btr-restore.app" "$APP"
-  sync_appinfo
+  local restore; restore="$(dirname "$APP")/.btr-restore.app"
+  rm -rf "$restore"
+  ditto "$BACKUP" "$restore"
+  # 备份带着下载时的隔离标记，新复制出来的应用第一次执行会被系统检查；和安装时一样去掉它。
+  # 去标记会改 ctime，所以必须在计算版本记录之前做。改名不会改变里面文件的 ctime。
+  xattr -dr com.apple.quarantine "$restore" 2>/dev/null || true
+  sync_appinfo "$restore"
+  rm -rf "$APP" && mv "$restore" "$APP"
   say "已还原。账号和设置未改动。备份留在 ${BACKUP}，可手动删除。"
   notify "BTR 已卸载，正在重新打开官方客户端"
   relaunch
