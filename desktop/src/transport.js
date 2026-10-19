@@ -256,6 +256,16 @@
     }
   }
   root.XMLHttpRequest = DesktopXHR;
+  // The settings page and this player are separate pages. The settings page asks for a retest
+  // through localStorage; this page does the measuring, so it publishes the node states back.
+  const NODES_KEY = "BTR_Desktop.nodes.v1", RETEST_KEY = "BTR_Desktop.retest.v1";
+  function publishNodes() {
+    try {
+      const last = [...resolvers.values()].pop();
+      const nodes = last ? last.status().slice(0, 24) : [];
+      root.localStorage.setItem(NODES_KEY, JSON.stringify({ at: Date.now(), nodes, banned: bans.hosts() }));
+    } catch (_) {}
+  }
   api.transport = Object.freeze({
     eligible,
     register(playinfo) {
@@ -284,4 +294,9 @@
       root.fetch = nativeFetch; root.XMLHttpRequest = NativeXHR;
     }
   });
+  // Only in a browser page: the dev tests load this file without localStorage or timers.
+  if (root.localStorage && root.addEventListener) {
+    root.addEventListener("storage", event => { if (event.key === RETEST_KEY) api.transport.retest(); });
+    setInterval(publishNodes, 3000);
+  }
 })(globalThis);

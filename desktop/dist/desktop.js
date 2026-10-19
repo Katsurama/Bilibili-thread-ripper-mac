@@ -2253,6 +2253,12 @@ globalThis.__BTR_DESKTOP_RELEASE__={"version":"2026.10.19.1-d1","adapterRevision
       return api.getSettings();
     },
     onSettings(fn) { listeners.add(fn); fn(api.getSettings()); return () => listeners.delete(fn); },
+    // The settings page and the player are separate pages: the player does the measuring, so
+    // the request goes through localStorage and the player's "storage" listener picks it up.
+    requestRetest() {
+      try { localStorage.setItem("BTR_Desktop.retest.v1", String(Date.now())); return true; }
+      catch (_) { return false; }
+    },
     update: Object.freeze({ state: "idle", message: "从 GitHub 检查 BTR 更新" })
   };
   root.addEventListener("storage", event => {
@@ -2523,6 +2529,16 @@ globalThis.__BTR_DESKTOP_RELEASE__={"version":"2026.10.19.1-d1","adapterRevision
     }
   }
   root.XMLHttpRequest = DesktopXHR;
+  // The settings page and this player are separate pages. The settings page asks for a retest
+  // through localStorage; this page does the measuring, so it publishes the node states back.
+  const NODES_KEY = "BTR_Desktop.nodes.v1", RETEST_KEY = "BTR_Desktop.retest.v1";
+  function publishNodes() {
+    try {
+      const last = [...resolvers.values()].pop();
+      const nodes = last ? last.status().slice(0, 24) : [];
+      root.localStorage.setItem(NODES_KEY, JSON.stringify({ at: Date.now(), nodes, banned: bans.hosts() }));
+    } catch (_) {}
+  }
   api.transport = Object.freeze({
     eligible,
     register(playinfo) {
@@ -2551,6 +2567,11 @@ globalThis.__BTR_DESKTOP_RELEASE__={"version":"2026.10.19.1-d1","adapterRevision
       root.fetch = nativeFetch; root.XMLHttpRequest = NativeXHR;
     }
   });
+  // Only in a browser page: the dev tests load this file without localStorage or timers.
+  if (root.localStorage && root.addEventListener) {
+    root.addEventListener("storage", event => { if (event.key === RETEST_KEY) api.transport.retest(); });
+    setInterval(publishNodes, 3000);
+  }
 })(globalThis);
 
 
@@ -2730,7 +2751,7 @@ globalThis.__BTR_DESKTOP_RELEASE__={"version":"2026.10.19.1-d1","adapterRevision
       panel = document.createElement("section"); panel.id = "btr-desktop-settings"; panel.className = "settings_content--item";
       panel.innerHTML = `<h4>BTR 线程撕裂者<span class="btr-version">${api.version}</span></h4>
         <div class="btr-row"><label><input type="checkbox" data-setting="enabled">启用多线程加速</label></div>
-        <div class="btr-row"><span class="btr-label">CDN 模式</span><button type="button" data-mode="mainland">大陆 CDN</button><button type="button" data-mode="overseas">海外 CDN</button><button type="button" data-mode="auto">自动测速</button><button type="button" data-mode="custom">自定义</button><button type="button" id="btr-desktop-retest">重新测速</button></div>
+        <div class="btr-row"><span class="btr-label">CDN 模式</span><button type="button" data-mode="mainland">大陆 CDN</button><button type="button" data-mode="overseas">海外 CDN</button><button type="button" data-mode="auto">自动测速</button><button type="button" data-mode="custom">自定义</button><button type="button" id="btr-desktop-retest">重新测速</button></div><div class="btr-note btr-mode-help">测速一直在进行。模式只决定候选节点：大陆 CDN 只用大陆节点；海外 CDN 只用海外节点；自动测速 两组一起测，选最快的；自定义 只用你勾选的服务器。</div><div class="btr-note btr-retest-status" role="status"></div><div class="btr-note btr-nodes"></div>
         <div class="btr-custom" hidden>
           <div class="btr-note btr-custom-empty">还没选服务器，暂时按大陆 CDN 下载。</div>
           <div class="btr-host-groups"></div>
@@ -2791,11 +2812,28 @@ globalThis.__BTR_DESKTOP_RELEASE__={"version":"2026.10.19.1-d1","adapterRevision
         if (input.dataset.category) save({ debugCategories: Object.fromEntries([...panel.querySelectorAll("[data-category]")].map(x => [x.dataset.category, x.checked])) });
         if (input.id === "btr-desktop-threads") save({ concurrency: threadOptions[Number(input.value)] });
       });
+      // The node states the player publishes every few seconds, shown here with their speeds.
+      const renderNodes = () => {
+        const box = panel.querySelector(".btr-nodes");
+        let data = null;
+        try { data = JSON.parse(root.localStorage.getItem("BTR_Desktop.nodes.v1") || "null"); } catch (_) {}
+        if (!data) { box.textContent = "播放视频后，这里会显示各节点的状态和速度。"; return; }
+        const labels = { healthy: "正常", blocked: "暂停中", banned: "已停用", untested: "未测" };
+        const lines = [`最近更新：${Math.max(0, Math.round((Date.now() - data.at) / 1000))} 秒前`, ...data.nodes.map(node => `${node.host}：${labels[node.state] || node.state}${node.bps ? `，${(node.bps / 1048576).toFixed(2)} MB/s` : ""}`)];
+        box.replaceChildren(...lines.map(text => { const row = document.createElement("div"); row.textContent = text; return row; }));
+      };
+      root.addEventListener("storage", event => { if (event.key === "BTR_Desktop.nodes.v1") renderNodes(); });
+      renderNodes();
       panel.querySelector("input[type=range]").addEventListener("input", event => { panel.querySelector("output").textContent = String(threadOptions[Number(event.target.value)]); });
       panel.addEventListener("click", event => {
         const button = event.target.closest("button"); if (!button) return;
         if (button.id === "btr-desktop-check-update") api.checkUpdate();
-        if (button.id === "btr-desktop-retest") api.transport?.retest();
+        if (button.id === "btr-desktop-retest") {
+          const sent = api.requestRetest();
+          panel.querySelector(".btr-retest-status").textContent = sent
+            ? "已请求重新测速。播放视频时，下一段会重新测量所有节点；没有在播放时，下次播放生效。"
+            : "无法发送重新测速请求，请检查存储空间后重试。";
+        }
         if (button.id === "btr-desktop-host-add") addHost();
         if (button.dataset.removeHost) save({ customHosts: api.getSettings().customHosts.filter(host => host !== button.dataset.removeHost) });
         if (button.dataset.mode) save({ mode: button.dataset.mode });

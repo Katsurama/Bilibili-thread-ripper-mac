@@ -1,18 +1,18 @@
 {
   "version": "2026.10.19.1-d1",
   "adapterRevision": 1,
-  "sha256": "cebf7cf2ec2fac41597ba02a9b38c54c5a597a18f388d83129a7c44d63e19c27",
+  "sha256": "7d27247aa09e39e26d84a12192a44a3509dd37e0e23445f455cdc14af4abd2ab",
   "files": {
     "shared/range-core.js": "4719439a8803ba530c6627604e7e7232ce6cef9223984b489059d8ce3f0be605",
     "shared/cdn-resolver.js": "b5a81c8042413b0e1ebe0018ca2086245f29213b191d46bc70bda720f69fed4a",
     "shared/idm-downloader.js": "c772f5b57bb8fe860475548c8286ea29f7913fd8ce056756dfca84fe1f5405d3",
     "shared/runtime-notices.js": "54763461c5b6b167cf879612a2e1d0c6a71cebbde02e2702669a1fc7a2be7564",
     "shared/notification-view.js": "13bfd21f1d6768194d49e7103de38afbd4be6cb969999020424ad9799b892b37",
-    "src/settings.js": "6df6040acb3554ac911a499350b0ad617d62b97873181f5a81c22303ca7c2fa3",
-    "src/transport.js": "97011f18465fa26bb9145b24c3e52622cf0b51c0d243431fe7c3b50c4c730b2c",
+    "src/settings.js": "c86389e328d1bb5600de73b14a4a021cc7d047a59e59d69ff62ea3b626a43266",
+    "src/transport.js": "e4285b82b198ad80609a470f780561b26c6c502307397755cb7de6279cb12adc",
     "src/client.js": "65f56318eba1c1bf92f5b276b7731e3567877392e8454349c89a7005673b9818",
     "src/updates.js": "4be36c1110458d8edd04d2429b614f6f0190c23ed28c70586ac0c47edad541b2",
-    "src/settings-view.js": "261ab91ee42c3573d3574634d1a576dab0ddcb442f4e1ddf4c2f3fa947aa4f25",
+    "src/settings-view.js": "4d1ce8f34b99b2d729f5d6a2b6113ca5b55ddcbfc13346f8566a6e769c2f6073",
     "src/player-settings.js": "dd8d9a1083ba3318d7f89b829d554b118b0f49c321c4c3eb5a6b101e4c08dc01"
   }
 }
