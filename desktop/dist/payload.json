@@ -1,7 +1,7 @@
 {
   "version": "2026.10.19.1-d1",
   "adapterRevision": 1,
-  "sha256": "7d27247aa09e39e26d84a12192a44a3509dd37e0e23445f455cdc14af4abd2ab",
+  "sha256": "549643bf5badc98abf93332a833a39bf9f2a0d4d9e4b820cbffc17c12f88f3cb",
   "files": {
     "shared/range-core.js": "4719439a8803ba530c6627604e7e7232ce6cef9223984b489059d8ce3f0be605",
     "shared/cdn-resolver.js": "b5a81c8042413b0e1ebe0018ca2086245f29213b191d46bc70bda720f69fed4a",
@@ -12,7 +12,7 @@
     "src/transport.js": "e4285b82b198ad80609a470f780561b26c6c502307397755cb7de6279cb12adc",
     "src/client.js": "65f56318eba1c1bf92f5b276b7731e3567877392e8454349c89a7005673b9818",
     "src/updates.js": "4be36c1110458d8edd04d2429b614f6f0190c23ed28c70586ac0c47edad541b2",
-    "src/settings-view.js": "4d1ce8f34b99b2d729f5d6a2b6113ca5b55ddcbfc13346f8566a6e769c2f6073",
+    "src/settings-view.js": "a9b7dc26421a543e238ea642082577eae96eef1195a6b673e6eefcd6798ee304",
     "src/player-settings.js": "dd8d9a1083ba3318d7f89b829d554b118b0f49c321c4c3eb5a6b101e4c08dc01"
   }
 }

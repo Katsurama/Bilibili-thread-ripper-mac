@@ -100,7 +100,9 @@ test("the downloader reports received bytes, bans a silent node and stops using 
   const download=async()=>{const result=await downloader.downloadRange(range,resolver,{parallel:true,kind:"video"});assert.equal(result.bytes.length,range.length);assert.ok(result.bytes.every((value,i)=>value===i%251));};
   // Each round starts after the short back-off, as when a user keeps watching. The rounds
   // continue past the ban: the exploration slot only reaches the partial node now and then.
-  for(let round=0;round<6;round++){await download();advance(61000);}
+  // Twelve rounds: which node the exploration slot picks depends on measured speeds, so six
+  // rounds sometimes never reached the partial node.
+  for(let round=0;round<12;round++){await download();advance(61000);}
   assert.deepEqual(Array.from(banned),[DEAD]);
   // Parallel pieces may already be waiting on the node when the second empty reply arrives.
   assert.ok(count(DEAD)>=2,"banned only after two empty replies");

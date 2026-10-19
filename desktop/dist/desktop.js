@@ -2819,10 +2819,13 @@ globalThis.__BTR_DESKTOP_RELEASE__={"version":"2026.10.19.1-d1","adapterRevision
         try { data = JSON.parse(root.localStorage.getItem("BTR_Desktop.nodes.v1") || "null"); } catch (_) {}
         if (!data) { box.textContent = "播放视频后，这里会显示各节点的状态和速度。"; return; }
         const labels = { healthy: "正常", blocked: "暂停中", banned: "已停用", untested: "未测" };
-        const lines = [`最近更新：${Math.max(0, Math.round((Date.now() - data.at) / 1000))} 秒前`, ...data.nodes.map(node => `${node.host}：${labels[node.state] || node.state}${node.bps ? `，${(node.bps / 1048576).toFixed(2)} MB/s` : ""}`)];
+        const age = Math.max(0, Math.round((Date.now() - data.at) / 1000));
+        const lines = [age > 15 ? "播放页已停止更新，可能没有在播放视频，下面是最后一次的状态。" : `最近更新：${age} 秒前`, ...data.nodes.map(node => `${node.host}：${labels[node.state] || node.state}${node.bps ? `，${(node.bps / 1048576).toFixed(2)} MB/s` : ""}`)];
         box.replaceChildren(...lines.map(text => { const row = document.createElement("div"); row.textContent = text; return row; }));
       };
       root.addEventListener("storage", event => { if (event.key === "BTR_Desktop.nodes.v1") renderNodes(); });
+      // Refreshed on a timer too, so the age in the first line moves while nothing is playing.
+      setInterval(renderNodes, 3000);
       renderNodes();
       panel.querySelector("input[type=range]").addEventListener("input", event => { panel.querySelector("output").textContent = String(threadOptions[Number(event.target.value)]); });
       panel.addEventListener("click", event => {
