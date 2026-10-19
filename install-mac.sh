@@ -177,7 +177,8 @@ make_backup() {
 }
 
 fetch_bundle() {
-  if [ -n "${BTR_REPO:-}" ]; then BUNDLE="$BTR_REPO/dist/desktop.js"; else
+  if [ -n "${BTR_REPO:-}" ]; then BUNDLE="$BTR_REPO/dist/desktop.js";
+  elif [ -f "$HERE/desktop/dist/desktop.js" ]; then BUNDLE="$HERE/desktop/dist/desktop.js"; else
     local src="$DATA/src" ref="${BTR_REF:-main}"
     if [ -d "$src/.git" ]; then
       say "更新 BTR Desktop 源码（${ref}）"
