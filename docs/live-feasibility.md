@@ -137,3 +137,84 @@ if (!process.isMainFrame
 - macOS 客户端是否启用 P2P SDK，以及其全局对象/请求接口。
 - 桌面版直播窗口与设置页是否共享 `localStorage`/`BroadcastChannel` storage partition。
 - 任何真实直播播放效果、节点速度、预取命中率或卡顿改善。
+
+## 第二阶段方案设计（仅方案，不实现）
+
+PR #3 已合并；本节是在同一工作分支上补充的后续方案设计。由于直播窗口 URL 和注入条件仍未由 `app.asar` 静态材料确认，本方案采用“先验证门槛、再启用模块”的两阶段闸门，不通过猜测 URL 来注入。
+
+### A. 注入条件确认后的实现结构
+
+如果用户提供的解包 `app.asar` 证明直播页面是可注入的，建议按以下边界实现：
+
+1. **注入 allowlist**
+   - `payload/preload.cjs` 保留现有 `bilipc.bilibili.com/index.html`、`/player.html` 规则。
+   - 仅增加由静态分析确认的直播 origin/path；如果播放器在 `live.bilibili.com/blanc/...` iframe 中，则允许 live 域的主 frame 和 live 域子 frame，但仍拒绝其他 Bilibili iframe。
+   - `process.isMainFrame` 不能继续无条件挡住已确认的 live iframe；必须改为“主 frame 或确认的 live 域 frame”。
+   - 不扩大 `payload/maintain.cjs` 的 IPC 信任范围，除非直播 frame 确实需要维护/更新 IPC；直播播放本身不应拥有更新、卸载或打开外链能力。
+
+2. **bundle 分层**
+   - 新增 `desktop/shared/live-core.js`：移植上游 `src/live-core.js` 的纯逻辑，保持无 DOM、无网络副作用，使用桌面项目的命名和测试约定。
+   - 新增 `desktop/shared/live-hook.js`：只在确认的直播页面安装，负责 playlist 观察、P2P URL 改写、完整 `.m4s` 下载竞速和有限预取。
+   - `desktop/tools/build.cjs` 将两个文件加入 bundle；点播的 `transport.js` 和 `idm-downloader.js` 不负责直播请求。
+   - `desktop/src/client.js`、播放器扫描和点播 XHR/fetch 接管逻辑在直播页面必须继续 no-op，避免把直播 `.m3u8` 或整片 `.m4s` 当点播 Range 请求。
+
+3. **设置同步**
+   - 不能假设 `bilipc.bilibili.com` 与 `live.bilibili.com` 共享 `localStorage` 或 `BroadcastChannel`；它们是不同 origin。
+   - 设置页继续把 `liveEnabled` 持久化在现有桌面设置中，并通过受信 preload 的窄 IPC 通道向主进程发布设置快照。
+   - 直播 frame 只允许调用“读取当前设置/订阅设置变化”的 IPC；主进程按 `senderFrame` URL 校验后返回 `{enabled, liveEnabled, mode, customHosts, ...}`，不暴露维护操作。
+   - 若直播窗口与 bilipc 页面实际属于同一 origin，则可以复用现有 storage 事件；在未验证前不采用这个假设。
+
+4. **直播下载行为**
+   - 原样复用上游的纯逻辑：`parseM3u8`、`isLivePlaylistUrl`、`isLiveSegmentUrl`、P2P/relay URL 判定、节点池的健康排序和短暂封禁。
+   - 改写为桌面环境的 `fetch`/XHR hook：保留播放器提供的 headers、credentials 和 abort signal；不添加账号、Cookie 或签名 URL 的日志。
+   - 只处理 fMP4 HLS：带 `#EXT-X-MAP` 的 `.m3u8` 以及 `.m4s` 分片。master playlist、TS/FLV 或无法验证完整长度的响应交回官方请求。
+   - 预取队列最多 3 个普通分片，播放器等待时降为 1 个；第二节点只在 hedge 延迟后启动。上下文按 playlist 目录切换，换房间/清晰度时取消旧上下文。
+   - P2P SDK 屏蔽必须限定在直播模块开启且页面为确认的直播页面；关闭开关、模块异常或播放器类型不匹配时恢复原对象/原请求。
+   - 节点只接收经过现有 Bilibili media-host 校验的地址；不允许自定义任意域名，也不输出完整带签名 URL。
+
+5. **设置界面**
+   - 把当前 disabled 的“直播加速（敬请期待）”改为可勾选的“直播加速（实验性）”，默认 `false`。
+   - 保留明确的回退说明：只支持确认的 fMP4 直播流；不支持时由客户端原生播放。
+   - `liveEnabled` 的 schema、默认值、升级归一化和设置广播必须在设置页、直播 frame、bundle 三处一致。
+   - 因为改动会进入客户端，任何实现提交都必须同时升级 `mac-version.json`，并重新提交 `desktop/dist/desktop.js`。
+
+### B. 如果确认不能注入
+
+如果解包材料显示直播窗口使用不受 preload 覆盖的 origin/path，或播放器在独立 session 中无法获得安全的设置 IPC，则不实现桌面直播加速：
+
+- 保持开关灰色或继续显示“敬请期待”，避免给用户造成已生效的假象。
+- 不修改官方 app 二进制，不绕过签名、完整性检查或安全策略。
+- 文档说明网页版方案是当前唯一可支持的路径：上游 userscript 可在 `live.bilibili.com` 主 frame 和 `blanc` iframe 中运行。
+- 只有客户端未来提供受支持的扩展入口，或提供可确认的直播 preload 加载路径后，才重新评估桌面实现。
+
+### C. 测试设计
+
+不使用真实直播服务器做默认测试，不保存账号、Cookie、播放地址或签名 URL。建议测试层次如下：
+
+1. **`node --test` 纯逻辑测试**
+   - 用 `vm` 加载 `desktop/shared/live-core.js`。
+   - 覆盖 playinfo 扁平化、P2P/relay 识别、m3u8 相对 URL、初始化分片、序号和 TS/master 拒绝。
+   - 覆盖节点池的探测状态、首字节排序、短暂阻塞、两次空响应封禁和恢复。
+
+2. **离线 hook harness**
+   - 用假的 `fetch`、`Response`、`ReadableStream`、XHR 和计时器加载真实 `live-hook.js`。
+   - 验证：播放器请求命中缓存、缓存 miss 触发 urgent 下载、hedge 取消慢副本、预取 404 不封禁节点、响应长度不符回退、Abort 不留下旧上下文。
+   - 验证 P2P 全局对象只在 `liveEnabled=true` 时被 mock，关闭后恢复原对象。
+
+3. **桌面浏览器 fixture**
+   - 在现有 `desktop/test/browser.cjs` 增加离线 live fixture，而不是导航到真实直播间。
+   - 验证设置默认关闭、跨页面设置变化、直播页面不触发点播 Range downloader、非直播页面行为不变。
+   - 验证没有 `.m3u8`/`.m4s` 时 bundle 无新增网络请求。
+
+4. **真机安装前检查**
+   - 先用用户提供的 `app.asar` 解包目录完成 URL/注入确认。
+   - 再构建并运行全部桌面单元测试；每次实现提交都记录构建版本和通过数。
+   - 只有用户再次明确同意后，才运行安装脚本做真机直播验证；默认不安装、不改 `/Applications`。
+
+### D. 真机验证清单（未来实现后）
+
+- 设置页：开关默认关闭，打开后状态在直播窗口可见；关闭后不再接管新分片。
+- 播放器：覆盖 fMP4 直播、TS/FLV 回退、切换清晰度、切换直播间、关闭窗口和网络短暂失败。
+- 性能：记录首片等待、连续播放时长、预取命中率、hedge 次数和健康节点数；只记录脱敏的节点 host，不记录完整 URL。
+- 安全：确认不请求未允许的 host，不把签名 URL 发送到日志/IPC，不改变官方应用文件和签名。
+- 失败处理：若启动界面卡住或播放异常，停止测试，不反复重启；按用户明确授权范围收集本地文件列表和脱敏日志。
