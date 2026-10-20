@@ -2,7 +2,7 @@
 const fs = require("node:fs"), path = require("node:path");
 const { sha } = require("./asar.cjs");
 const root = path.resolve(__dirname, "..");
-const shared = ["range-core.js", "cdn-resolver.js", "idm-downloader.js", "runtime-notices.js", "notification-view.js"];
+const shared = ["range-core.js", "live-core.js", "cdn-resolver.js", "idm-downloader.js", "runtime-notices.js", "notification-view.js"];
 const own = ["settings.js", "transport.js", "client.js", "updates.js", "settings-view.js", "player-settings.js"];
 const files = [...shared.map(x => `shared/${x}`), ...own.map(x => `src/${x}`)];
 const config = JSON.parse(fs.readFileSync(path.join(root, "desktop.json")));

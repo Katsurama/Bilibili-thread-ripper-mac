@@ -138,6 +138,12 @@ if (!process.isMainFrame
 - 桌面版直播窗口与设置页是否共享 `localStorage`/`BroadcastChannel` storage partition。
 - 任何真实直播播放效果、节点速度、预取命中率或卡顿改善。
 
+## 第一版实现状态
+
+本分支已加入 `desktop/shared/live-core.js`，提供只读的直播页面/播放列表/分片识别和安全门控，并由桌面 bundle 构建流程打包。门控默认关闭，只接受 `live.bilibili.com` 页面上的 HTTPS fMP4 HLS（`.m3u8`、`#EXT-X-MAP`、`.m4s`），拒绝点播 `.m4s`、master playlist、TS/FLV、非 GET 和 Range 请求；它没有改写 `desktop/src/transport.js`，因此不会把直播流量混入点播 Range downloader。
+
+由于仍没有 app.asar 或真机注入证据，本版没有扩大 `payload/preload.cjs` 的页面 allowlist，也没有安装 fetch/XHR hook、预取、hedge 或 P2P 屏蔽。真实直播窗口 URL、preload 是否加载以及客户端播放器协议仍未验证；后续只有在这些证据确认后才能实现完整 hook。
+
 ## 第二阶段方案设计（仅方案，不实现）
 
 PR #3 已合并；本节是在同一工作分支上补充的后续方案设计。由于直播窗口 URL 和注入条件仍未由 `app.asar` 静态材料确认，本方案采用“先验证门槛、再启用模块”的两阶段闸门，不通过猜测 URL 来注入。
