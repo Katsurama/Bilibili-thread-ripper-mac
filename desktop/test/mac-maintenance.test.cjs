@@ -8,5 +8,6 @@ const script = fs.readFileSync(path.join(__dirname, "../../install-mac.sh"), "ut
 
 test("client-launched maintenance leaves the single relaunch to Terminal", () => {
   assert.match(script, /relaunch_after_action\(\) \{ \[ -z "\$FROM_APP" \] && relaunch; \}/);
-  assert.equal((script.match(/relaunch_after_action/g) || []).length, 3);
+  assert.equal((script.match(/relaunch_after_action/g) || []).length, 4);
+  assert.match(script, /notify "BTR 已卸载，正在重新打开官方客户端"\n\s+relaunch_after_action/);
 });

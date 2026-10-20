@@ -262,7 +262,7 @@ uninstall() {
     say "已还原，但没能确认还原结果，备份保留在 ${BACKUP}"
   fi
   notify "BTR 已卸载，正在重新打开官方客户端"
-  relaunch
+  relaunch_after_action
 }
 
 # 客户端判定“重新安装”时，会把当时的 app.asar 复制进自己的缓存目录并从那里运行。
