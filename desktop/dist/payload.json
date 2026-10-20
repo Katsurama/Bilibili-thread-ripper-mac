@@ -1,14 +1,15 @@
 {
   "version": "2026.10.19.1-d1",
   "adapterRevision": 1,
-  "sha256": "549643bf5badc98abf93332a833a39bf9f2a0d4d9e4b820cbffc17c12f88f3cb",
+  "sha256": "7f1e6d16b18d1bb9e68b7f5425852bc6ae8c169e159fbf99fe50e6254f91197a",
   "files": {
     "shared/range-core.js": "4719439a8803ba530c6627604e7e7232ce6cef9223984b489059d8ce3f0be605",
+    "shared/live-core.js": "02fc81314201780bc7713666de22587fc1c4f36f38dbc6a3a96a10d8439413eb",
     "shared/cdn-resolver.js": "b5a81c8042413b0e1ebe0018ca2086245f29213b191d46bc70bda720f69fed4a",
     "shared/idm-downloader.js": "c772f5b57bb8fe860475548c8286ea29f7913fd8ce056756dfca84fe1f5405d3",
     "shared/runtime-notices.js": "54763461c5b6b167cf879612a2e1d0c6a71cebbde02e2702669a1fc7a2be7564",
     "shared/notification-view.js": "13bfd21f1d6768194d49e7103de38afbd4be6cb969999020424ad9799b892b37",
-    "src/settings.js": "c86389e328d1bb5600de73b14a4a021cc7d047a59e59d69ff62ea3b626a43266",
+    "src/settings.js": "959984ff4c0bcf4be7f1b6d3ae34bca33e6386ed0bb7096850984ef2ec893cca",
     "src/transport.js": "e4285b82b198ad80609a470f780561b26c6c502307397755cb7de6279cb12adc",
     "src/client.js": "65f56318eba1c1bf92f5b276b7731e3567877392e8454349c89a7005673b9818",
     "src/updates.js": "4be36c1110458d8edd04d2429b614f6f0190c23ed28c70586ac0c47edad541b2",
