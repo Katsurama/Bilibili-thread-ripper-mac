@@ -273,6 +273,8 @@ test("the custom CDN mode uses only the servers picked in the settings, and only
   let hosts=Array.from(settings.customHosts);
   const resolver=cdn.createResolver({baseUrl:mediaUrl("upos-sz-mirrorali.bilivideo.com")},()=>"custom",null,()=>hosts);
   assert.deepEqual(hostsOf(resolver.urls()),["upos-sz-mirrorcos.bilivideo.com","cn-gdfs-ct-01-01.bilivideo.com"]);
+  assert.ok(resolver.startupCandidates().length <= 4);
+  assert.ok(resolver.rangeCandidates().length <= 4);
   // The first request of a video does not race Bilibili's own address either.
   assert.deepEqual(hostsOf(resolver.startupCandidates()),["upos-sz-mirrorcos.bilivideo.com","cn-gdfs-ct-01-01.bilivideo.com"]);
   // An address Bilibili handed out on one of the picked servers is kept as it is.

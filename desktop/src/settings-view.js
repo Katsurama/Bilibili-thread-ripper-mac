@@ -14,12 +14,14 @@
     #btr-desktop-settings #btr-desktop-uninstall:hover:not(:disabled){background:#d04450}
     #btr-desktop-settings button:disabled{opacity:.55;cursor:default}
     #btr-desktop-settings .btr-inline{margin:0}#btr-desktop-settings .btr-threads-row.btr-auto{opacity:.45}#btr-desktop-settings .btr-threads-row.btr-auto input{cursor:default}
-    #btr-desktop-settings .btr-live-row label{color:var(--text3,#9499a0);cursor:not-allowed}#btr-desktop-settings .btr-live-row input{cursor:not-allowed}
+    #btr-desktop-settings .btr-live-row{opacity:.5}#btr-desktop-settings .btr-live-row label{color:var(--text3,#9499a0);cursor:default}
     #btr-desktop-settings input{accent-color:#d45b88}#btr-desktop-settings input[type=checkbox]{width:16px;height:16px;vertical-align:middle;margin:0 8px 0 0}
     #btr-desktop-settings input[type=range]{width:min(290px,55vw)}#btr-desktop-settings output{min-width:35px;color:#ef77a3;font-weight:600}
     #btr-desktop-settings .btr-debug-options{display:grid;grid-template-columns:repeat(2,minmax(145px,1fr));gap:12px;max-width:440px;padding:12px 0 6px}
     #btr-desktop-settings .btr-custom{margin:0 0 8px 148px;max-width:520px}#btr-desktop-settings .btr-host-title{margin:14px 0 8px;color:var(--text2,#b3bfca);font-size:13px}
     #btr-desktop-settings .btr-host-list{display:grid;grid-template-columns:repeat(2,minmax(230px,1fr));gap:9px 16px;font-size:12px}#btr-desktop-settings .btr-host-list label{overflow-wrap:anywhere;cursor:pointer}
+    #btr-desktop-settings .btr-host-status{margin-left:6px;color:var(--text3,#9499a0);font-size:11px}
+    #btr-desktop-settings .btr-node-details{margin:8px 0}.btr-node-details summary{cursor:pointer;color:var(--text2,#b3bfca)}
     #btr-desktop-settings .btr-host-add{display:flex;gap:8px;margin:8px 0}#btr-desktop-settings input[type=text]{flex:1;min-width:0;border:1px solid var(--line_regular,#353638);border-radius:5px;background:var(--bg3,#252729);color:inherit;padding:7px 10px;font:inherit;font-size:12px}
     #btr-desktop-settings .btr-manual-host{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:6px 0;font-size:12px;overflow-wrap:anywhere}#btr-desktop-settings .btr-manual-host button{padding:2px 9px}
     #btr-desktop-settings .btr-host-error{color:#f77979}#btr-desktop-settings .btr-host-error:empty{display:none}
@@ -38,7 +40,7 @@
       panel = document.createElement("section"); panel.id = "btr-desktop-settings"; panel.className = "settings_content--item";
       panel.innerHTML = `<h4>BTR 线程撕裂者<span class="btr-version">${api.version}</span></h4>
         <div class="btr-row"><label><input type="checkbox" data-setting="enabled">启用多线程加速</label></div>
-        <div class="btr-row"><span class="btr-label">CDN 模式</span><button type="button" data-mode="mainland">大陆 CDN</button><button type="button" data-mode="overseas">海外 CDN</button><button type="button" data-mode="auto">自动测速</button><button type="button" data-mode="custom">自定义</button><button type="button" id="btr-desktop-retest">重新测速</button></div><div class="btr-note btr-mode-help">测速一直在进行。模式只决定候选节点：大陆 CDN 只用大陆节点；海外 CDN 只用海外节点；自动测速 两组一起测，选最快的；自定义 只用你勾选的服务器。</div><div class="btr-note btr-retest-status" role="status"></div><div class="btr-note btr-nodes"></div>
+        <div class="btr-row"><span class="btr-label">CDN 模式</span><button type="button" data-mode="mainland">大陆 CDN</button><button type="button" data-mode="overseas">海外 CDN</button><button type="button" data-mode="auto">自动测速</button><button type="button" data-mode="custom">自定义</button><button type="button" id="btr-desktop-retest">重新测速</button></div><div class="btr-note btr-mode-help"></div><div class="btr-note btr-retest-status" role="status"></div><details class="btr-node-details" hidden><summary>测速节点</summary><div class="btr-note btr-nodes"></div></details>
         <div class="btr-custom" hidden>
           <div class="btr-note btr-custom-empty">还没选服务器，暂时按大陆 CDN 下载。</div>
           <div class="btr-host-groups"></div>
@@ -50,7 +52,7 @@
         </div>
         <div class="btr-row"><label><input type="checkbox" data-setting="autoConcurrency">自动线程数</label><span class="btr-note btr-inline">BTR将智能选择需要的线程数。</span></div>
         <div class="btr-row btr-threads-row"><label class="btr-label" for="btr-desktop-threads">并发线程</label><input id="btr-desktop-threads" type="range" min="0" max="5" step="1"><output></output></div>
-        <div class="btr-row btr-live-row"><label><input type="checkbox" id="btr-desktop-live" disabled>直播加速（敬请期待）</label><span class="btr-note btr-inline">直播加速已可在网页版中使用</span></div>
+        <div class="btr-row btr-live-row"><label><input type="checkbox" data-setting="liveEnabled" disabled>直播加速（敬请期待）</label><span class="btr-note btr-inline">此功能暂未开放，默认关闭。</span></div>
         <div class="btr-row"><label><input type="checkbox" data-setting="errorNotices">显示错误</label><label><input type="checkbox" data-setting="debugNotices">Debug 模式</label></div>
         <div class="btr-debug-wrap" hidden><div class="btr-row"><button type="button" data-select="all">全选</button><button type="button" data-select="none">全不选</button></div><div class="btr-debug-options"></div></div>
         <div class="btr-row"><label><input type="checkbox" data-setting="autoCheckUpdates">自动检查 BTR 更新</label></div>
@@ -68,8 +70,9 @@
         const heading = document.createElement("div"); heading.className = "btr-host-title"; heading.textContent = title;
         const list = document.createElement("div"); list.className = "btr-host-list";
         for (const host of hosts) {
-          const label = document.createElement("label"), input = document.createElement("input");
-          input.type = "checkbox"; input.dataset.host = host; label.append(input, host); list.append(label);
+          const label = document.createElement("label"), input = document.createElement("input"), status = document.createElement("span");
+          input.type = "checkbox"; input.dataset.host = host; status.className = "btr-host-status"; status.dataset.hostStatus = host;
+          label.append(input, host, status); list.append(label);
         }
         panel.querySelector(".btr-host-groups").append(heading, list);
       }
@@ -102,26 +105,42 @@
       // The node states the player publishes every few seconds, shown here with their speeds.
       const renderNodes = () => {
         const box = panel.querySelector(".btr-nodes");
+        const details = panel.querySelector(".btr-node-details");
+        const summary = details.querySelector("summary");
+        const settings = api.getSettings();
+        const hostStatus = new Map([...panel.querySelectorAll("[data-host-status]")].map(node => [node.dataset.hostStatus, node]));
+        hostStatus.forEach(node => { node.textContent = ""; });
         let data = null;
         try { data = JSON.parse(root.localStorage.getItem("BTR_Desktop.nodes.v1") || "null"); } catch (_) {}
-        if (!data) { box.textContent = "播放视频后，这里会显示各节点的状态和速度。"; return; }
+        if (!data || !["auto", "custom"].includes(settings.mode)) { box.textContent = ""; details.hidden = true; return; }
+        details.hidden = false;
         const labels = { healthy: "正常", blocked: "暂停中", banned: "已停用", untested: "未测" };
-        const age = Math.max(0, Math.round((Date.now() - data.at) / 1000));
-        const lines = [age > 15 ? "播放页已停止更新，可能没有在播放视频，下面是最后一次的状态。" : `最近更新：${age} 秒前`, ...data.nodes.map(node => `${node.host}：${labels[node.state] || node.state}${node.bps ? `，${(node.bps / 1048576).toFixed(2)} MB/s` : ""}`)];
+        const selectedHosts = settings.mode === "custom" ? new Set(settings.customHosts) : null;
+        const nodes = data.nodes.filter(node => !selectedHosts || selectedHosts.has(node.host));
+        const measuredCount = nodes.filter(node => node.measuredAt).length;
+        const candidateCount = selectedHosts ? selectedHosts.size : (Number.isFinite(data.candidateCount) ? data.candidateCount : nodes.length);
+        summary.textContent = `测速节点（已测 ${measuredCount}/${candidateCount}）`;
+        const lines = [
+          ...nodes.map(node => `${node.host}：${labels[node.state] || node.state}${node.bps ? `，${(node.bps / 1048576).toFixed(2)} MB/s` : ""}`)
+        ];
         box.replaceChildren(...lines.map(text => { const row = document.createElement("div"); row.textContent = text; return row; }));
+        nodes.forEach(node => {
+          const status = hostStatus.get(node.host);
+          if (status) status.textContent = node.bps ? `${labels[node.state] || node.state} ${(node.bps / 1048576).toFixed(2)} MB/s` : (labels[node.state] || node.state);
+        });
       };
       root.addEventListener("storage", event => { if (event.key === "BTR_Desktop.nodes.v1") renderNodes(); });
-      // Refreshed on a timer too, so the age in the first line moves while nothing is playing.
+      // Refresh the stopped/active label without exposing a misleading 0/1-second timestamp.
       setInterval(renderNodes, 3000);
       renderNodes();
       panel.querySelector("input[type=range]").addEventListener("input", event => { panel.querySelector("output").textContent = String(threadOptions[Number(event.target.value)]); });
       panel.addEventListener("click", event => {
         const button = event.target.closest("button"); if (!button) return;
         if (button.id === "btr-desktop-check-update") api.checkUpdate();
-        if (button.id === "btr-desktop-retest") {
+        if (button.id === "btr-desktop-retest" && !button.disabled) {
           const sent = api.requestRetest();
           panel.querySelector(".btr-retest-status").textContent = sent
-            ? "已请求重新测速。播放视频时，下一段会重新测量所有节点；没有在播放时，下次播放生效。"
+            ? "已请求重新测速。下一次播放请求会重新测量节点。"
             : "无法发送重新测速请求，请检查存储空间后重试。";
         }
         if (button.id === "btr-desktop-host-add") addHost();
@@ -133,6 +152,17 @@
         panel.querySelectorAll("[data-setting]").forEach(x => { x.checked = settings[x.dataset.setting]; });
         panel.querySelectorAll("[data-category]").forEach(x => { x.checked = settings.debugCategories[x.dataset.category] !== false; });
         panel.querySelectorAll("[data-mode]").forEach(x => x.setAttribute("aria-pressed", String(x.dataset.mode === settings.mode)));
+        const retest = panel.querySelector("#btr-desktop-retest");
+        retest.disabled = !["auto", "custom"].includes(settings.mode);
+        retest.title = ["auto", "custom"].includes(settings.mode)
+          ? "清除测速结果，下次播放请求重新测量"
+          : "当前模式固定使用指定节点，不需要测速";
+        panel.querySelector(".btr-mode-help").textContent = {
+          mainland: "",
+          overseas: "",
+          auto: "同时使用大陆和海外 CDN，播放时根据真实下载速度选择更快节点，不会在后台单独运行测速；需要立即重测请点击“重新测速”。",
+          custom: "只使用你勾选的服务器，只在这些节点中测速并优先使用更快的节点；其他节点不会参与。"
+        }[settings.mode] || "";
         panel.querySelector(".btr-custom").hidden = settings.mode !== "custom";
         panel.querySelector(".btr-custom-empty").hidden = settings.customHosts.length > 0;
         panel.querySelectorAll("[data-host]").forEach(x => { x.checked = settings.customHosts.includes(x.dataset.host); });
@@ -148,6 +178,7 @@
         panel.querySelector("input[type=range]").disabled = settings.autoConcurrency;
         panel.querySelector(".btr-threads-row").classList.toggle("btr-auto", settings.autoConcurrency);
         panel.querySelector(".btr-debug-wrap").hidden = !settings.debugNotices;
+        renderNodes();
       });
       unsubscribeUpdate = api.onUpdate(update => {
         panel.querySelector(".btr-update-status").textContent = update.message;

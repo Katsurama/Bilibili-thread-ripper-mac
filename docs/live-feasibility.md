@@ -138,11 +138,13 @@ if (!process.isMainFrame
 - 桌面版直播窗口与设置页是否共享 `localStorage`/`BroadcastChannel` storage partition。
 - 任何真实直播播放效果、节点速度、预取命中率或卡顿改善。
 
-## 第一版实现状态
+## 当前实现状态
 
-本分支已加入 `desktop/shared/live-core.js`，提供只读的直播页面/播放列表/分片识别和安全门控，并由桌面 bundle 构建流程打包。门控默认关闭，只接受 `live.bilibili.com` 页面上的 HTTPS fMP4 HLS（`.m3u8`、`#EXT-X-MAP`、`.m4s`），拒绝点播 `.m4s`、master playlist、TS/FLV、非 GET 和 Range 请求；它没有改写 `desktop/src/transport.js`，因此不会把直播流量混入点播 Range downloader。
+本分支现已加入 `desktop/shared/live-core.js` 和 `desktop/shared/live-hook.js`。直播窗口在同一 Electron session 中加载受限 preload 后，bundle 会在 `live.bilibili.com` 页面安装独立的 fetch hook：只在设置启用、页面为直播页、请求为 HTTPS fMP4 HLS 的 `.m3u8`/`.m4s` 时工作；直播分片会按 CDN 模式生成候选节点并竞速，失败时回退原始请求。直播逻辑不复用点播 Range downloader，也不处理 master playlist、TS/FLV、非 GET 或 Range 请求。
 
-由于仍没有 app.asar 或真机注入证据，本版没有扩大 `payload/preload.cjs` 的页面 allowlist，也没有安装 fetch/XHR hook、预取、hedge 或 P2P 屏蔽。真实直播窗口 URL、preload 是否加载以及客户端播放器协议仍未验证；后续只有在这些证据确认后才能实现完整 hook。
+设置页通过受限 IPC 向直播窗口同步 `liveEnabled`、CDN 模式和自定义节点；直播页会显示“BTR 直播加速：已启用”状态标记。直播加速默认关闭，未识别或不兼容的播放流保持官方原始请求。
+
+当前仍未验证真实客户端中的直播播放器是否使用可拦截的 fetch/XHR 请求，也未验证直播分片格式、P2P SDK 和真实节点效果；真机安装和直播播放测试仍是必要的后续步骤。
 
 ## 第二阶段方案设计（仅方案，不实现）
 

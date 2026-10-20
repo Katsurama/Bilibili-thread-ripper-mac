@@ -200,9 +200,8 @@
     });
   }
 
-  // How long a measured speed counts. A node in use is measured again with every segment; one
-  // that was left out for being slow goes back to the untested ones after this, and gets
-  // another try through the exploration slot.
+  // Measurements are made only as part of real media downloads. They expire after this period
+  // so a route that recovered can be explored again; there is no standalone background probe.
   const MEASUREMENT_TTL_MS = 90000;
 
   function createResolver(representation, getMode, bans = null, getCustomHosts = null) {
@@ -275,7 +274,7 @@
         .sort(bySpeed);
       if (!pool.length) return urls();
       const firstRange = mediaRangeCount === 0;
-      const width = Math.min(firstRange ? pool.length : 6, pool.length);
+      const width = Math.min(firstRange ? 4 : 6, pool.length);
       let selected;
       const warmupRanges = getMode?.() === "mainland" ? 1 : 4;
       if (mediaRangeCount < warmupRanges) {
@@ -291,12 +290,11 @@
         // finding the good nodes quickly costs little.
         const measured = pool.filter((url) => measuredNow(url, now));
         const rest = pool.filter((url) => !measuredNow(url, now));
-        const places = Math.min(rest.length, Math.max(1, width - measured.length));
-        const explore = Array.from({ length: places }, (_item, index) => rest[(rangeCursor + index) % rest.length]);
-        rangeCursor = (rangeCursor + places) % Math.max(1, pool.length);
+        const explore = rest.length ? [rest[rangeCursor % rest.length]] : [];
+        rangeCursor = (rangeCursor + explore.length) % Math.max(1, pool.length);
         selected = [...measured.slice(0, width - explore.length), ...explore];
-        for (const url of pool) {
-          if (selected.length >= Math.min(3, pool.length)) break;
+        for (const url of measured) {
+          if (selected.length >= Math.min(6, pool.length)) break;
           if (!selected.includes(url)) selected.push(url);
         }
       }
@@ -316,7 +314,7 @@
       const candidates = unbanned([...originals, ...allUrls()]
         .filter((url, index, all) => all.indexOf(url) === index))
         .filter((url) => (health.get(url)?.blockedUntil || 0) <= now);
-      return candidates.slice(0, 8);
+      return candidates.slice(0, 4);
     }
 
     function rescueCandidates() {
@@ -376,7 +374,8 @@
         return {
           host: new URL(url).hostname,
           state: nodeBanned ? "banned" : (item.blockedUntil || 0) > now ? "blocked" : measurement(url)?.lastSuccessAt ? "healthy" : "untested",
-          bps: measurement(url)?.bps || 0
+          bps: measurement(url)?.bps || 0,
+          measuredAt: measurement(url)?.lastMeasuredAt || 0
         };
       });
     }

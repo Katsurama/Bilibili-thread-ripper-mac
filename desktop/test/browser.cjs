@@ -40,12 +40,10 @@ const server = http.createServer((req, res) => { res.setHeader("Content-Type", r
     assert.equal(await page.locator("[data-setting=autoConcurrency]").isChecked(), true);
     assert.match(await page.locator("[data-setting=autoConcurrency]").locator("xpath=../following-sibling::span").textContent(), /BTR将智能选择需要的线程数。/);
     assert.equal(await page.locator("#btr-desktop-threads").isDisabled(), true);
-    // Live acceleration is not in the client yet: a grey switch that cannot be ticked, and a
-    // line saying where it already works.
-    assert.equal(await page.locator("#btr-desktop-live").isDisabled(), true);
-    assert.equal(await page.locator("#btr-desktop-live").isChecked(), false);
+    assert.equal(await page.locator("[data-setting=liveEnabled]").isDisabled(), true);
+    assert.equal(await page.locator("[data-setting=liveEnabled]").isChecked(), false);
     assert.equal(await page.locator(".btr-live-row label").textContent(), "直播加速（敬请期待）");
-    assert.equal(await page.locator(".btr-live-row .btr-note").textContent(), "直播加速已可在网页版中使用");
+    assert.equal(await page.locator(".btr-live-row .btr-note").textContent(), "此功能暂未开放，默认关闭。");
     assert.equal(await page.locator('[data-mode="mainland"]').getAttribute("aria-pressed"), "true");
     assert.equal(await page.locator('[data-setting=autoCheckUpdates]').isChecked(),true);
     assert.equal(await page.evaluate(()=>__BTR_DESKTOP__.getUpdate().state),"idle");

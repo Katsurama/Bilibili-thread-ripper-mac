@@ -261,9 +261,13 @@
   const NODES_KEY = "BTR_Desktop.nodes.v1", RETEST_KEY = "BTR_Desktop.retest.v1";
   function publishNodes() {
     try {
+      const mode = api.getSettings().mode;
       const last = [...resolvers.values()].pop();
       const nodes = last ? last.status().slice(0, 24) : [];
-      root.localStorage.setItem(NODES_KEY, JSON.stringify({ at: Date.now(), nodes, banned: bans.hosts() }));
+      const at = Date.now();
+      const measuredAt = nodes.reduce((latest, node) => Math.max(latest, Number(node.measuredAt) || 0), 0);
+      const measuredCount = nodes.filter(node => Number(node.measuredAt) > 0).length;
+      root.localStorage.setItem(NODES_KEY, JSON.stringify({ at, mode, measuredAt, measuredCount, candidateCount: nodes.length, nodes, banned: bans.hosts() }));
     } catch (_) {}
   }
   api.transport = Object.freeze({
@@ -285,8 +289,10 @@
     // Forgets the measured speeds and the bans, so the next segments measure every node again.
     // Used by the settings page's "重新测速" button; nodes come and go during the day.
     retest() {
+      if (!["auto", "custom"].includes(api.getSettings().mode)) return false;
       resolvers.clear(); bans.reset();
       log("已重新测速", "下一段开始重新测量所有节点的速度。", "info", "download");
+      return true;
     },
     snapshot: () => ({ ...stats, generation, pending: pending.size, bannedHosts: bans.hosts(), threads: threadsNow() }),
     restore() {

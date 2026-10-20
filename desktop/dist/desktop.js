@@ -415,9 +415,8 @@ globalThis.__BTR_DESKTOP_RELEASE__={"version":"2026.10.19.1-d1","adapterRevision
     });
   }
 
-  // How long a measured speed counts. A node in use is measured again with every segment; one
-  // that was left out for being slow goes back to the untested ones after this, and gets
-  // another try through the exploration slot.
+  // Measurements are made only as part of real media downloads. They expire after this period
+  // so a route that recovered can be explored again; there is no standalone background probe.
   const MEASUREMENT_TTL_MS = 90000;
 
   function createResolver(representation, getMode, bans = null, getCustomHosts = null) {
@@ -490,7 +489,7 @@ globalThis.__BTR_DESKTOP_RELEASE__={"version":"2026.10.19.1-d1","adapterRevision
         .sort(bySpeed);
       if (!pool.length) return urls();
       const firstRange = mediaRangeCount === 0;
-      const width = Math.min(firstRange ? pool.length : 6, pool.length);
+      const width = Math.min(firstRange ? 4 : 6, pool.length);
       let selected;
       const warmupRanges = getMode?.() === "mainland" ? 1 : 4;
       if (mediaRangeCount < warmupRanges) {
@@ -506,12 +505,11 @@ globalThis.__BTR_DESKTOP_RELEASE__={"version":"2026.10.19.1-d1","adapterRevision
         // finding the good nodes quickly costs little.
         const measured = pool.filter((url) => measuredNow(url, now));
         const rest = pool.filter((url) => !measuredNow(url, now));
-        const places = Math.min(rest.length, Math.max(1, width - measured.length));
-        const explore = Array.from({ length: places }, (_item, index) => rest[(rangeCursor + index) % rest.length]);
-        rangeCursor = (rangeCursor + places) % Math.max(1, pool.length);
+        const explore = rest.length ? [rest[rangeCursor % rest.length]] : [];
+        rangeCursor = (rangeCursor + explore.length) % Math.max(1, pool.length);
         selected = [...measured.slice(0, width - explore.length), ...explore];
-        for (const url of pool) {
-          if (selected.length >= Math.min(3, pool.length)) break;
+        for (const url of measured) {
+          if (selected.length >= Math.min(6, pool.length)) break;
           if (!selected.includes(url)) selected.push(url);
         }
       }
@@ -531,7 +529,7 @@ globalThis.__BTR_DESKTOP_RELEASE__={"version":"2026.10.19.1-d1","adapterRevision
       const candidates = unbanned([...originals, ...allUrls()]
         .filter((url, index, all) => all.indexOf(url) === index))
         .filter((url) => (health.get(url)?.blockedUntil || 0) <= now);
-      return candidates.slice(0, 8);
+      return candidates.slice(0, 4);
     }
 
     function rescueCandidates() {
@@ -591,7 +589,8 @@ globalThis.__BTR_DESKTOP_RELEASE__={"version":"2026.10.19.1-d1","adapterRevision
         return {
           host: new URL(url).hostname,
           state: nodeBanned ? "banned" : (item.blockedUntil || 0) > now ? "blocked" : measurement(url)?.lastSuccessAt ? "healthy" : "untested",
-          bps: measurement(url)?.bps || 0
+          bps: measurement(url)?.bps || 0,
+          measuredAt: measurement(url)?.lastMeasuredAt || 0
         };
       });
     }
@@ -2297,7 +2296,7 @@ globalThis.__BTR_DESKTOP_RELEASE__={"version":"2026.10.19.1-d1","adapterRevision
     // video servers and drops anything else.
     // 自动线程数 is on unless switched off, as in the browser version; concurrency is then only
     // the manual choice, used again when it is switched off.
-    return { enabled: s.enabled, liveEnabled: s.liveEnabled, autoConcurrency: value?.autoConcurrency !== false, concurrency: s.concurrency, mode: s.mode, customHosts: s.customHosts, debugNotices: s.debugNotices, errorNotices: s.errorNotices, debugCategories: s.debugCategories, autoCheckUpdates: value?.autoCheckUpdates !== false, revision: REVISION };
+    return { enabled: s.enabled, liveEnabled: false, episodeEnabled: s.episodeEnabled, autoConcurrency: value?.autoConcurrency !== false, concurrency: s.concurrency, mode: s.mode, customHosts: s.customHosts, debugNotices: s.debugNotices, errorNotices: s.errorNotices, debugCategories: s.debugCategories, autoCheckUpdates: value?.autoCheckUpdates !== false, revision: REVISION };
   };
   let current;
   try {
@@ -2317,6 +2316,7 @@ globalThis.__BTR_DESKTOP_RELEASE__={"version":"2026.10.19.1-d1","adapterRevision
       const next = normalize({ ...current, ...patch });
       localStorage.setItem(KEY, JSON.stringify(next)); // Failure must not pretend to save.
       current = next; emit(); channel?.postMessage(current);
+      root.postMessage({ channel: "__BTR_DESKTOP_UPDATE__", type: "live-settings", settings: current }, root.location.origin);
       return api.getSettings();
     },
     onSettings(fn) { listeners.add(fn); fn(api.getSettings()); return () => listeners.delete(fn); },
@@ -2334,6 +2334,251 @@ globalThis.__BTR_DESKTOP_RELEASE__={"version":"2026.10.19.1-d1","adapterRevision
   });
   if (channel) channel.onmessage = event => { current = normalize(event.data); emit(); };
   Object.defineProperty(root, "__BTR_DESKTOP__", { value: api });
+  root.postMessage({ channel: "__BTR_DESKTOP_UPDATE__", type: "live-settings", settings: current }, root.location.origin);
+})(globalThis);
+
+
+/* shared/live-hook.js */
+(function installLiveHook(root) {
+  "use strict";
+  const core = root.__BILI_LIVE_CORE__, cdn = root.__BILI_CDN_RESOLVER_FACTORY__, api = root.__BTR_DESKTOP__;
+  if (!core || !cdn || !api || root.location?.origin !== "https://live.bilibili.com") return;
+  const nativeFetch = root.fetch?.bind(root);
+  const NativeXHR = root.XMLHttpRequest;
+  if (!nativeFetch || root.__BTR_LIVE_HOOK__) return;
+  root.__BTR_LIVE_HOOK__ = true;
+  root.__BTR_LIVE_STATUS__ = "loaded";
+  const active = () => {
+    const settings = api.getSettings();
+    return settings.enabled && settings.liveEnabled;
+  };
+  let acceleratedSegments = 0;
+  const badge = document.createElement("button");
+  badge.type = "button";
+  badge.textContent = "BTR 直播加速：关闭";
+  badge.style.cssText = "position:fixed;z-index:2147483647;right:12px;bottom:12px;padding:5px 9px;border:1px solid rgba(255,255,255,.45);border-radius:5px;background:rgba(20,20,20,.88);color:#fff;font:12px -apple-system,BlinkMacSystemFont,sans-serif;cursor:pointer";
+  document.getElementById?.("btr-live-preload-status")?.remove();
+  function updateBadge() {
+    badge.textContent = active()
+      ? `BTR 直播加速：${acceleratedSegments ? `已接管 ${acceleratedSegments} 个分片` : "已启用，等待分片"}`
+      : "BTR 直播加速：关闭";
+    badge.style.display = "";
+  }
+  root.__BTR_LIVE_STATUS__ = active() ? "enabled" : "disabled";
+  function installBadge() {
+    if (document.documentElement && !badge.isConnected) document.documentElement.append(badge);
+    updateBadge();
+  }
+  badge.addEventListener("click", () => {
+    try { api.setSettings({ liveEnabled: !api.getSettings().liveEnabled }); } catch (_) {}
+    updateBadge();
+    updateQualityControl();
+  });
+  const qualityControl = document.createElement("button");
+  qualityControl.type = "button";
+  qualityControl.className = "btr-live-toggle";
+  qualityControl.style.cssText = "margin-left:8px;padding:4px 8px;border:1px solid currentColor;border-radius:4px;background:transparent;color:inherit;font:inherit;cursor:pointer";
+  qualityControl.addEventListener("click", () => {
+    try { api.setSettings({ liveEnabled: !api.getSettings().liveEnabled }); } catch (_) {}
+    updateBadge();
+    updateQualityControl();
+  });
+  function updateQualityControl() {
+    const enabled = active();
+    qualityControl.textContent = enabled
+      ? `BTR 加速：${acceleratedSegments ? `已接管 ${acceleratedSegments} 个分片` : "已启用，等待分片"}`
+      : "BTR 加速：关";
+    qualityControl.setAttribute("aria-pressed", String(enabled));
+    qualityControl.title = enabled
+      ? "已启用；点击关闭直播加速"
+      : "点击开启直播加速";
+  }
+  function installQualityControl() {
+    if (!document.querySelector) return;
+    const enhancement = [...document.querySelectorAll("button,[role=button],span,div")].find(node => {
+      const text = String(node.textContent || "").trim();
+      return /^画质增强(?:\s|$)/.test(text) && text.length < 40;
+    });
+    if (enhancement?.parentElement) {
+      const row = enhancement.parentElement;
+      if (qualityControl.parentElement !== row.parentElement) row.parentElement?.insertBefore(qualityControl, row);
+      qualityControl.style.cssText = "display:block;width:100%;box-sizing:border-box;margin:0;padding:13px 40px 13px 40px;border:0;background:transparent;color:inherit;text-align:left;font:inherit;cursor:pointer";
+      qualityControl.dataset.btrQualityMenu = "true";
+    } else if (!qualityControl.isConnected) {
+      const candidates = [...document.querySelectorAll("button,[role=button],[aria-label]")].filter(node => {
+        const text = `${node.textContent || ""} ${node.getAttribute("aria-label") || ""}`;
+        return /画质|清晰度|quality/i.test(text) && text.length < 80;
+      });
+      const anchor = candidates[candidates.length - 1];
+      if (anchor?.parentElement) anchor.parentElement.append(qualityControl);
+    }
+    updateQualityControl();
+  }
+  installBadge();
+  installXhrHook();
+  new MutationObserver(() => { installBadge(); installQualityControl(); }).observe(document.documentElement, { childList: true, subtree: true });
+  api.onSettings(() => { root.__BTR_LIVE_STATUS__ = active() ? "enabled" : "disabled"; updateBadge(); updateQualityControl(); });
+  installQualityControl();
+
+  const segmentCache = new Map();
+  const prefetching = new Set();
+  const MAX_CACHE_ENTRIES = 4;
+  const MAX_CACHE_BYTES = 8 * 1024 * 1024;
+  const MAX_PREFETCH = 2;
+
+  function cacheResponse(url, response) {
+    if (!response?.ok || !response.body) return;
+    void response.clone().arrayBuffer().then(buffer => {
+      if (!buffer.byteLength || buffer.byteLength > MAX_CACHE_BYTES) return;
+      segmentCache.delete(url);
+      segmentCache.set(url, {
+        bytes: new Uint8Array(buffer),
+        headers: [...response.headers.entries()]
+      });
+      while (segmentCache.size > MAX_CACHE_ENTRIES) segmentCache.delete(segmentCache.keys().next().value);
+    }).catch(() => {});
+  }
+
+  function cachedResponse(url) {
+    const item = segmentCache.get(url);
+    if (!item) return null;
+    segmentCache.delete(url);
+    segmentCache.set(url, item);
+    return new Response(item.bytes.slice(), { status: 200, headers: item.headers });
+  }
+
+  function resolver(url) {
+    return cdn.createResolver({ baseUrl: url }, () => api.getSettings().mode, null, () => api.getSettings().customHosts);
+  }
+  const xhrRoutes = new Map();
+  function routeLiveUrl(url) {
+    if (!active()) return null;
+    let candidates = resolver(url).urls().filter(candidate =>
+      core.isLivePlaylistUrl(candidate) || core.isLiveSegmentUrl(candidate));
+    if (!candidates.length && core.isLivePlaylistUrl(url)) {
+      const settings = api.getSettings();
+      const custom = settings.mode === "custom" ? settings.customHosts : [];
+      const hosts = custom.length ? custom
+        : settings.mode === "overseas" ? cdn.OVERSEAS_HOSTS
+          : settings.mode === "auto" ? cdn.GLOBAL_HOSTS : cdn.MAINLAND_HOSTS;
+      candidates = hosts.map(host => {
+        try {
+          const routed = new URL(url);
+          routed.hostname = host;
+          routed.port = "";
+          return routed.href;
+        } catch (_) { return null; }
+      }).filter(Boolean).slice(0, 4);
+    }
+    if (!candidates.length) return null;
+    const key = String(url);
+    const index = (xhrRoutes.get(key) || 0) % candidates.length;
+    xhrRoutes.set(key, index + 1);
+    return candidates[index];
+  }
+  function installXhrHook() {
+    if (!NativeXHR?.prototype?.open || !NativeXHR.prototype.send || root.__BTR_LIVE_XHR_HOOK__) return;
+    root.__BTR_LIVE_XHR_HOOK__ = true;
+    const nativeOpen = NativeXHR.prototype.open;
+    const nativeSend = NativeXHR.prototype.send;
+    NativeXHR.prototype.open = function btrLiveOpen(method, url, ...rest) {
+      const originalUrl = String(url);
+      const routedUrl = routeLiveUrl(originalUrl);
+      this.__btrLiveUrl = routedUrl ? originalUrl : "";
+      return nativeOpen.call(this, method, routedUrl || url, ...rest);
+    };
+    NativeXHR.prototype.send = function btrLiveSend(body) {
+      if (this.__btrLiveUrl) {
+        const mark = () => {
+          if (this.status >= 200 && this.status < 400) {
+            acceleratedSegments += 1;
+            updateBadge();
+            updateQualityControl();
+          }
+        };
+        this.addEventListener("load", mark, { once: true });
+        this.addEventListener("error", () => {
+          this.__btrLiveUrl = "";
+        }, { once: true });
+      }
+      return nativeSend.call(this, body);
+    };
+  }
+  async function raceSegment(url, init) {
+    const candidates = resolver(url).urls().filter(core.isLiveSegmentUrl).slice(0, 3);
+    root.__BTR_LIVE_STATUS__ = candidates.length ? "routing" : "fallback";
+    if (!candidates.length) return nativeFetch(url, init);
+    const controllers = candidates.map(() => new AbortController());
+    let settled = false;
+    const request = (candidate, index) => new Promise((resolve, reject) => {
+      const timer = setTimeout(() => controllers[index].abort(), 5500);
+      nativeFetch(candidate, { ...init, signal: controllers[index].signal }).then(response => {
+        clearTimeout(timer);
+        if (!response.ok) throw Object.assign(new Error(`直播节点 HTTP ${response.status}`), { response });
+        if (settled) return;
+        settled = true;
+        acceleratedSegments += 1;
+        root.__BTR_LIVE_STATUS__ = "accelerated";
+        updateBadge();
+        updateQualityControl();
+        controllers.forEach((controller, other) => { if (other !== index) controller.abort(); });
+        cacheResponse(url, response);
+        resolve(response);
+      }).catch(error => { clearTimeout(timer); reject(error); });
+    });
+    try {
+      return await Promise.any(candidates.map(request));
+    } catch (_) {
+      return nativeFetch(url, init);
+    }
+  }
+
+  async function prefetchSegments(urls) {
+    for (const url of urls.slice(-MAX_PREFETCH)) {
+      if (segmentCache.has(url) || prefetching.has(url)) continue;
+      prefetching.add(url);
+      try {
+        const response = await raceSegment(url, { method: "GET" });
+        if (!response.ok) continue;
+        await response.arrayBuffer();
+      } catch (_) {
+        // Prefetch is opportunistic; playback continues through the normal request path.
+      } finally {
+        prefetching.delete(url);
+      }
+    }
+  }
+
+  root.fetch = async function btrLiveFetch(input, init = {}) {
+    const url = typeof input === "string" ? input : input?.url;
+    const method = init.method || input?.method || "GET";
+    const headers = init.headers || input?.headers;
+    if (!active() || !core.shouldHandleRequest({ pageUrl: location.href, liveEnabled: true, url, method, headers })) {
+      return nativeFetch(input, init);
+    }
+    if (core.isLivePlaylistUrl(url)) {
+      const response = await nativeFetch(input, init);
+      if (!response.ok) return response;
+      const text = await response.clone().text();
+      const playlist = core.parseM3u8(text, url);
+      if (playlist) void prefetchSegments(playlist.segments);
+      return response;
+    }
+    const cached = cachedResponse(url);
+    if (cached) return cached;
+    return raceSegment(url, init);
+  };
+  root.addEventListener("pagehide", () => {
+    root.fetch = nativeFetch;
+    if (NativeXHR?.prototype && root.__BTR_LIVE_XHR_HOOK__) {
+      delete root.__BTR_LIVE_XHR_HOOK__;
+    }
+    xhrRoutes.clear();
+    segmentCache.clear();
+    prefetching.clear();
+    badge.remove();
+    qualityControl.remove();
+  }, { once: true });
 })(globalThis);
 
 
@@ -2601,9 +2846,13 @@ globalThis.__BTR_DESKTOP_RELEASE__={"version":"2026.10.19.1-d1","adapterRevision
   const NODES_KEY = "BTR_Desktop.nodes.v1", RETEST_KEY = "BTR_Desktop.retest.v1";
   function publishNodes() {
     try {
+      const mode = api.getSettings().mode;
       const last = [...resolvers.values()].pop();
       const nodes = last ? last.status().slice(0, 24) : [];
-      root.localStorage.setItem(NODES_KEY, JSON.stringify({ at: Date.now(), nodes, banned: bans.hosts() }));
+      const at = Date.now();
+      const measuredAt = nodes.reduce((latest, node) => Math.max(latest, Number(node.measuredAt) || 0), 0);
+      const measuredCount = nodes.filter(node => Number(node.measuredAt) > 0).length;
+      root.localStorage.setItem(NODES_KEY, JSON.stringify({ at, mode, measuredAt, measuredCount, candidateCount: nodes.length, nodes, banned: bans.hosts() }));
     } catch (_) {}
   }
   api.transport = Object.freeze({
@@ -2625,8 +2874,10 @@ globalThis.__BTR_DESKTOP_RELEASE__={"version":"2026.10.19.1-d1","adapterRevision
     // Forgets the measured speeds and the bans, so the next segments measure every node again.
     // Used by the settings page's "重新测速" button; nodes come and go during the day.
     retest() {
+      if (!["auto", "custom"].includes(api.getSettings().mode)) return false;
       resolvers.clear(); bans.reset();
       log("已重新测速", "下一段开始重新测量所有节点的速度。", "info", "download");
+      return true;
     },
     snapshot: () => ({ ...stats, generation, pending: pending.size, bannedHosts: bans.hosts(), threads: threadsNow() }),
     restore() {
@@ -2794,12 +3045,14 @@ globalThis.__BTR_DESKTOP_RELEASE__={"version":"2026.10.19.1-d1","adapterRevision
     #btr-desktop-settings #btr-desktop-uninstall:hover:not(:disabled){background:#d04450}
     #btr-desktop-settings button:disabled{opacity:.55;cursor:default}
     #btr-desktop-settings .btr-inline{margin:0}#btr-desktop-settings .btr-threads-row.btr-auto{opacity:.45}#btr-desktop-settings .btr-threads-row.btr-auto input{cursor:default}
-    #btr-desktop-settings .btr-live-row label{color:var(--text3,#9499a0);cursor:not-allowed}#btr-desktop-settings .btr-live-row input{cursor:not-allowed}
+    #btr-desktop-settings .btr-live-row{opacity:.5}#btr-desktop-settings .btr-live-row label{color:var(--text3,#9499a0);cursor:default}
     #btr-desktop-settings input{accent-color:#d45b88}#btr-desktop-settings input[type=checkbox]{width:16px;height:16px;vertical-align:middle;margin:0 8px 0 0}
     #btr-desktop-settings input[type=range]{width:min(290px,55vw)}#btr-desktop-settings output{min-width:35px;color:#ef77a3;font-weight:600}
     #btr-desktop-settings .btr-debug-options{display:grid;grid-template-columns:repeat(2,minmax(145px,1fr));gap:12px;max-width:440px;padding:12px 0 6px}
     #btr-desktop-settings .btr-custom{margin:0 0 8px 148px;max-width:520px}#btr-desktop-settings .btr-host-title{margin:14px 0 8px;color:var(--text2,#b3bfca);font-size:13px}
     #btr-desktop-settings .btr-host-list{display:grid;grid-template-columns:repeat(2,minmax(230px,1fr));gap:9px 16px;font-size:12px}#btr-desktop-settings .btr-host-list label{overflow-wrap:anywhere;cursor:pointer}
+    #btr-desktop-settings .btr-host-status{margin-left:6px;color:var(--text3,#9499a0);font-size:11px}
+    #btr-desktop-settings .btr-node-details{margin:8px 0}.btr-node-details summary{cursor:pointer;color:var(--text2,#b3bfca)}
     #btr-desktop-settings .btr-host-add{display:flex;gap:8px;margin:8px 0}#btr-desktop-settings input[type=text]{flex:1;min-width:0;border:1px solid var(--line_regular,#353638);border-radius:5px;background:var(--bg3,#252729);color:inherit;padding:7px 10px;font:inherit;font-size:12px}
     #btr-desktop-settings .btr-manual-host{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:6px 0;font-size:12px;overflow-wrap:anywhere}#btr-desktop-settings .btr-manual-host button{padding:2px 9px}
     #btr-desktop-settings .btr-host-error{color:#f77979}#btr-desktop-settings .btr-host-error:empty{display:none}
@@ -2818,7 +3071,7 @@ globalThis.__BTR_DESKTOP_RELEASE__={"version":"2026.10.19.1-d1","adapterRevision
       panel = document.createElement("section"); panel.id = "btr-desktop-settings"; panel.className = "settings_content--item";
       panel.innerHTML = `<h4>BTR 线程撕裂者<span class="btr-version">${api.version}</span></h4>
         <div class="btr-row"><label><input type="checkbox" data-setting="enabled">启用多线程加速</label></div>
-        <div class="btr-row"><span class="btr-label">CDN 模式</span><button type="button" data-mode="mainland">大陆 CDN</button><button type="button" data-mode="overseas">海外 CDN</button><button type="button" data-mode="auto">自动测速</button><button type="button" data-mode="custom">自定义</button><button type="button" id="btr-desktop-retest">重新测速</button></div><div class="btr-note btr-mode-help">测速一直在进行。模式只决定候选节点：大陆 CDN 只用大陆节点；海外 CDN 只用海外节点；自动测速 两组一起测，选最快的；自定义 只用你勾选的服务器。</div><div class="btr-note btr-retest-status" role="status"></div><div class="btr-note btr-nodes"></div>
+        <div class="btr-row"><span class="btr-label">CDN 模式</span><button type="button" data-mode="mainland">大陆 CDN</button><button type="button" data-mode="overseas">海外 CDN</button><button type="button" data-mode="auto">自动测速</button><button type="button" data-mode="custom">自定义</button><button type="button" id="btr-desktop-retest">重新测速</button></div><div class="btr-note btr-mode-help"></div><div class="btr-note btr-retest-status" role="status"></div><details class="btr-node-details" hidden><summary>测速节点</summary><div class="btr-note btr-nodes"></div></details>
         <div class="btr-custom" hidden>
           <div class="btr-note btr-custom-empty">还没选服务器，暂时按大陆 CDN 下载。</div>
           <div class="btr-host-groups"></div>
@@ -2830,7 +3083,7 @@ globalThis.__BTR_DESKTOP_RELEASE__={"version":"2026.10.19.1-d1","adapterRevision
         </div>
         <div class="btr-row"><label><input type="checkbox" data-setting="autoConcurrency">自动线程数</label><span class="btr-note btr-inline">BTR将智能选择需要的线程数。</span></div>
         <div class="btr-row btr-threads-row"><label class="btr-label" for="btr-desktop-threads">并发线程</label><input id="btr-desktop-threads" type="range" min="0" max="5" step="1"><output></output></div>
-        <div class="btr-row btr-live-row"><label><input type="checkbox" id="btr-desktop-live" disabled>直播加速（敬请期待）</label><span class="btr-note btr-inline">直播加速已可在网页版中使用</span></div>
+        <div class="btr-row btr-live-row"><label><input type="checkbox" data-setting="liveEnabled" disabled>直播加速（敬请期待）</label><span class="btr-note btr-inline">此功能暂未开放，默认关闭。</span></div>
         <div class="btr-row"><label><input type="checkbox" data-setting="errorNotices">显示错误</label><label><input type="checkbox" data-setting="debugNotices">Debug 模式</label></div>
         <div class="btr-debug-wrap" hidden><div class="btr-row"><button type="button" data-select="all">全选</button><button type="button" data-select="none">全不选</button></div><div class="btr-debug-options"></div></div>
         <div class="btr-row"><label><input type="checkbox" data-setting="autoCheckUpdates">自动检查 BTR 更新</label></div>
@@ -2848,8 +3101,9 @@ globalThis.__BTR_DESKTOP_RELEASE__={"version":"2026.10.19.1-d1","adapterRevision
         const heading = document.createElement("div"); heading.className = "btr-host-title"; heading.textContent = title;
         const list = document.createElement("div"); list.className = "btr-host-list";
         for (const host of hosts) {
-          const label = document.createElement("label"), input = document.createElement("input");
-          input.type = "checkbox"; input.dataset.host = host; label.append(input, host); list.append(label);
+          const label = document.createElement("label"), input = document.createElement("input"), status = document.createElement("span");
+          input.type = "checkbox"; input.dataset.host = host; status.className = "btr-host-status"; status.dataset.hostStatus = host;
+          label.append(input, host, status); list.append(label);
         }
         panel.querySelector(".btr-host-groups").append(heading, list);
       }
@@ -2882,26 +3136,42 @@ globalThis.__BTR_DESKTOP_RELEASE__={"version":"2026.10.19.1-d1","adapterRevision
       // The node states the player publishes every few seconds, shown here with their speeds.
       const renderNodes = () => {
         const box = panel.querySelector(".btr-nodes");
+        const details = panel.querySelector(".btr-node-details");
+        const summary = details.querySelector("summary");
+        const settings = api.getSettings();
+        const hostStatus = new Map([...panel.querySelectorAll("[data-host-status]")].map(node => [node.dataset.hostStatus, node]));
+        hostStatus.forEach(node => { node.textContent = ""; });
         let data = null;
         try { data = JSON.parse(root.localStorage.getItem("BTR_Desktop.nodes.v1") || "null"); } catch (_) {}
-        if (!data) { box.textContent = "播放视频后，这里会显示各节点的状态和速度。"; return; }
+        if (!data || !["auto", "custom"].includes(settings.mode)) { box.textContent = ""; details.hidden = true; return; }
+        details.hidden = false;
         const labels = { healthy: "正常", blocked: "暂停中", banned: "已停用", untested: "未测" };
-        const age = Math.max(0, Math.round((Date.now() - data.at) / 1000));
-        const lines = [age > 15 ? "播放页已停止更新，可能没有在播放视频，下面是最后一次的状态。" : `最近更新：${age} 秒前`, ...data.nodes.map(node => `${node.host}：${labels[node.state] || node.state}${node.bps ? `，${(node.bps / 1048576).toFixed(2)} MB/s` : ""}`)];
+        const selectedHosts = settings.mode === "custom" ? new Set(settings.customHosts) : null;
+        const nodes = data.nodes.filter(node => !selectedHosts || selectedHosts.has(node.host));
+        const measuredCount = nodes.filter(node => node.measuredAt).length;
+        const candidateCount = selectedHosts ? selectedHosts.size : (Number.isFinite(data.candidateCount) ? data.candidateCount : nodes.length);
+        summary.textContent = `测速节点（已测 ${measuredCount}/${candidateCount}）`;
+        const lines = [
+          ...nodes.map(node => `${node.host}：${labels[node.state] || node.state}${node.bps ? `，${(node.bps / 1048576).toFixed(2)} MB/s` : ""}`)
+        ];
         box.replaceChildren(...lines.map(text => { const row = document.createElement("div"); row.textContent = text; return row; }));
+        nodes.forEach(node => {
+          const status = hostStatus.get(node.host);
+          if (status) status.textContent = node.bps ? `${labels[node.state] || node.state} ${(node.bps / 1048576).toFixed(2)} MB/s` : (labels[node.state] || node.state);
+        });
       };
       root.addEventListener("storage", event => { if (event.key === "BTR_Desktop.nodes.v1") renderNodes(); });
-      // Refreshed on a timer too, so the age in the first line moves while nothing is playing.
+      // Refresh the stopped/active label without exposing a misleading 0/1-second timestamp.
       setInterval(renderNodes, 3000);
       renderNodes();
       panel.querySelector("input[type=range]").addEventListener("input", event => { panel.querySelector("output").textContent = String(threadOptions[Number(event.target.value)]); });
       panel.addEventListener("click", event => {
         const button = event.target.closest("button"); if (!button) return;
         if (button.id === "btr-desktop-check-update") api.checkUpdate();
-        if (button.id === "btr-desktop-retest") {
+        if (button.id === "btr-desktop-retest" && !button.disabled) {
           const sent = api.requestRetest();
           panel.querySelector(".btr-retest-status").textContent = sent
-            ? "已请求重新测速。播放视频时，下一段会重新测量所有节点；没有在播放时，下次播放生效。"
+            ? "已请求重新测速。下一次播放请求会重新测量节点。"
             : "无法发送重新测速请求，请检查存储空间后重试。";
         }
         if (button.id === "btr-desktop-host-add") addHost();
@@ -2913,6 +3183,17 @@ globalThis.__BTR_DESKTOP_RELEASE__={"version":"2026.10.19.1-d1","adapterRevision
         panel.querySelectorAll("[data-setting]").forEach(x => { x.checked = settings[x.dataset.setting]; });
         panel.querySelectorAll("[data-category]").forEach(x => { x.checked = settings.debugCategories[x.dataset.category] !== false; });
         panel.querySelectorAll("[data-mode]").forEach(x => x.setAttribute("aria-pressed", String(x.dataset.mode === settings.mode)));
+        const retest = panel.querySelector("#btr-desktop-retest");
+        retest.disabled = !["auto", "custom"].includes(settings.mode);
+        retest.title = ["auto", "custom"].includes(settings.mode)
+          ? "清除测速结果，下次播放请求重新测量"
+          : "当前模式固定使用指定节点，不需要测速";
+        panel.querySelector(".btr-mode-help").textContent = {
+          mainland: "",
+          overseas: "",
+          auto: "同时使用大陆和海外 CDN，播放时根据真实下载速度选择更快节点，不会在后台单独运行测速；需要立即重测请点击“重新测速”。",
+          custom: "只使用你勾选的服务器，只在这些节点中测速并优先使用更快的节点；其他节点不会参与。"
+        }[settings.mode] || "";
         panel.querySelector(".btr-custom").hidden = settings.mode !== "custom";
         panel.querySelector(".btr-custom-empty").hidden = settings.customHosts.length > 0;
         panel.querySelectorAll("[data-host]").forEach(x => { x.checked = settings.customHosts.includes(x.dataset.host); });
@@ -2928,6 +3209,7 @@ globalThis.__BTR_DESKTOP_RELEASE__={"version":"2026.10.19.1-d1","adapterRevision
         panel.querySelector("input[type=range]").disabled = settings.autoConcurrency;
         panel.querySelector(".btr-threads-row").classList.toggle("btr-auto", settings.autoConcurrency);
         panel.querySelector(".btr-debug-wrap").hidden = !settings.debugNotices;
+        renderNodes();
       });
       unsubscribeUpdate = api.onUpdate(update => {
         panel.querySelector(".btr-update-status").textContent = update.message;
