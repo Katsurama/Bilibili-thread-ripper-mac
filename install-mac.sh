@@ -51,6 +51,7 @@ notify() { [ -n "$FROM_APP" ] && osascript -e "display notification \"$1\" with 
 # “日本標準時”），带着终端的 LANG 打开会和从 Dock 打开算出不同的值，被当成重新安装。所以去掉语言环境再打开。
 CLEAN_LOCALE="env -u LANG -u LC_ALL -u LC_CTYPE -u LC_MESSAGES -u LC_COLLATE -u LC_NUMERIC -u LC_TIME -u LC_MONETARY"
 relaunch() { [ -n "$FROM_APP" ] && [ -d "$APP" ] && $CLEAN_LOCALE open "$APP" >/dev/null 2>&1 || true; }
+relaunch_after_action() { [ -z "$FROM_APP" ] && relaunch; }
 say() { printf '\033[1;35m[BTR]\033[0m %s\n' "$*"; }
 die() {
   printf '\033[1;31m[BTR] %s\033[0m\n' "$*" >&2
@@ -213,7 +214,7 @@ install() {
   sync_appinfo
   say "安装完成。打开客户端，在 设置 → BTR Desktop for macOS 里调整；还原请运行 install-mac.sh uninstall"
   notify "BTR 已更新，正在重新打开客户端"
-  relaunch
+  relaunch_after_action
 }
 
 # 先更新本仓库（安装脚本和注入代码），再用新脚本完成安装。安装和更新都这样，
@@ -236,7 +237,7 @@ uninstall() {
     cleanup_data
     say "当前客户端不含 BTR，没有改动客户端，只清理了备份和 BTR 的数据"
     notify "BTR 已卸载，正在重新打开官方客户端"
-    relaunch
+    relaunch_after_action
     return
   fi
   [ -d "$BACKUP" ] || die "没有找到备份，无法还原。可以从官网重新下载安装官方客户端。"
