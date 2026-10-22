@@ -63,6 +63,26 @@
 > [!IMPORTANT]
 > 装着 BTR 的时候请保留 `~/btr-mac`：客户端里的更新和卸载按钮会用到里面的脚本。
 
+## 🔁 重新下载
+
+**2026 年 10 月 22 日之前下载过本仓库的用户请看这里。**
+
+本仓库的提交历史在 2026 年 10 月 22 日整理过一次，之前下载的 `~/btr-mac` 和 GitHub 上的对不上，更新时会提示“安装脚本更新失败，继续使用当前版本”。⌘Q 退出客户端后，在终端里重新下载并安装（不会动客户端的账号和设置，也不用先卸载）：
+
+```bash
+rm -rf ~/btr-mac
+```
+
+```bash
+git clone https://github.com/luitao666-arch/Bilibili-thread-ripper-mac.git ~/btr-mac
+```
+
+```bash
+bash ~/btr-mac/install-mac.sh
+```
+
+`~/btr-mac` 里只有安装脚本，删掉它不影响已经装好的 BTR，重新下载后客户端里的更新就恢复正常了。
+
 ## ⚙️ 设置
 
 设置项和原版相同，只多了一个“直播加速（实验性）”。设置页标题下面会显示 macOS 移植的版本、基于的 BTR Desktop 版本、问题反馈说明和原项目的 MIT 许可证。有两个入口，两边的设置同步：
@@ -119,7 +139,7 @@ bash ~/btr-mac/install-mac.sh update
 更新会保留客户端的设置和热更新状态，不会清空账号和官方客户端数据。
 
 > [!IMPORTANT]
-> 本仓库的提交历史在 2026 年 10 月 22 日整理过一次。在这之前下载过的话，客户端里的更新和 `install-mac.sh update` 都拉不到新版本，会一直停在旧版本，需要重新下载一次，见常见问题里的“[更新一直停在旧版本](#-常见问题)”。
+> 本仓库的提交历史在 2026 年 10 月 22 日整理过一次。在这之前下载过的话，客户端里的更新和 `install-mac.sh update` 都拉不到新版本，会一直停在旧版本，需要重新下载一次，见[重新下载](#-重新下载)。
 
 ### 官方客户端更新以后
 
@@ -165,27 +185,6 @@ rm -rf ~/btr-mac
 <summary><b>在客户端里点了更新，客户端关掉后没有再打开</b></summary>
 
 2026.10.11.4 之前的版本会这样，按上一条在终端里更新一次就好。新版本更新时会弹出“终端”窗口显示进度；如果更新失败，窗口不会关，可以在里面看到出错信息，完整日志在 `~/Library/Application Support/BTR-Mac/maintain.log`。
-
-</details>
-
-<details>
-<summary><b>更新一直停在旧版本（2026 年 10 月 22 日之前下载过）</b></summary>
-
-本仓库的提交历史在 2026 年 10 月 22 日整理过一次，之前下载的 `~/btr-mac` 和 GitHub 上的对不上，更新时会提示“安装脚本更新失败，继续使用当前版本”。⌘Q 退出客户端后，在终端里重新下载并安装（不会动客户端的账号和设置，也不用先卸载）：
-
-```bash
-rm -rf ~/btr-mac
-```
-
-```bash
-git clone https://github.com/luitao666-arch/Bilibili-thread-ripper-mac.git ~/btr-mac
-```
-
-```bash
-bash ~/btr-mac/install-mac.sh
-```
-
-`~/btr-mac` 里只有安装脚本，删掉它不影响已经装好的 BTR，重新下载后客户端里的更新就恢复正常了。
 
 </details>
 
