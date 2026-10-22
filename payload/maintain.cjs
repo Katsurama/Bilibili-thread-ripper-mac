@@ -108,8 +108,9 @@ function register(electron) {
     if (!event) return;
     alerted = true;
     const parent = BrowserWindow.fromWebContents(event.sender);
-    const options = { type: "warning", title: "BTR 重要更新", message: `请更新 BTR Desktop for macOS 到 ${result.manifest.version.replace(/^macOS /, "")}`,
-      detail: `${result.notice ? result.notice + "\n\n" : ""}当前版本 ${installed.macVersion || "未知"} 需要更新。选择“现在更新”会关闭哔哩哔哩，在“终端”里完成更新，完成后自动重新打开。`,
+    // The dialog appears over Bilibili's window, so it says plainly that it comes from the plugin.
+    const options = { type: "warning", title: "BTR Desktop for macOS 重要更新", message: `BTR Desktop for macOS 插件有重要更新：${result.manifest.version.replace(/^macOS /, "")}`,
+      detail: `这条提醒来自 BTR Desktop for macOS 插件（线程撕裂者的非官方 macOS 移植），不是哔哩哔哩官方。\n\n${result.notice ? result.notice + "\n\n" : ""}当前插件版本 ${installed.macVersion || "未知"} 需要更新。选择“现在更新”会关闭哔哩哔哩，在“终端”里完成更新，完成后自动重新打开。`,
       buttons: ["现在更新", "稍后"], defaultId: 0, cancelId: 1, noLink: true };
     const answer = parent ? await dialog.showMessageBox(parent, options) : await dialog.showMessageBox(options);
     if (answer.response === 0) publish(await maintain(event, false, true));

@@ -90,7 +90,9 @@ test("an installed version below minVersion gets one dialog with the notice, eve
     const { dialogs } = await launch(manifest, "2026.10.22.6", autoEnabled);
     assert.equal(dialogs.length, 1, `auto check ${autoEnabled ? "on" : "off"}: one dialog per launch`);
     assert.match(dialogs[0].message, /2026\.10\.22\.7/);
-    assert.match(dialogs[0].detail, /^仓库地址已更换，请尽快更新。\n/, "the notice is shown as plain text, control characters dropped");
+    assert.match(dialogs[0].title, /BTR Desktop for macOS/, "the plugin names itself: the dialog sits over Bilibili's window");
+    assert.match(dialogs[0].detail, /^这条提醒来自 BTR Desktop for macOS 插件/);
+    assert.match(dialogs[0].detail, /\n\n仓库地址已更换，请尽快更新。\n\n/, "the notice is shown as plain text, control characters dropped");
     assert.deepEqual(dialogs[0].buttons, ["现在更新", "稍后"]);
   }
 });
