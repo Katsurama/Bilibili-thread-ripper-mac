@@ -99,9 +99,7 @@
       // "full" replaces Bilibili's playback core; "compat" leaves it in charge and only
       // downloads its media requests.
       takeover: source.takeover === "compat" ? "compat" : "full",
-      // "auto" tries the mainland and the overseas nodes together and lets the measured speeds
-      // decide, so a viewer in Japan, Korea or Hong Kong is not stuck with the wrong group.
-      mode: ["overseas", "custom", "auto"].includes(source.mode) ? source.mode : "mainland",
+      mode: ["overseas", "custom"].includes(source.mode) ? source.mode : "mainland",
       customHosts: (Array.isArray(source.customHosts) ? source.customHosts : [])
         .map(normalizeCdnHost)
         .filter((host, index, all) => host && all.indexOf(host) === index)

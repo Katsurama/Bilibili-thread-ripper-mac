@@ -127,7 +127,7 @@ function register(electron) {
     liveSettings = {
       enabled: value.enabled !== false,
       liveEnabled: value.liveEnabled === true,
-      mode: ["mainland", "overseas", "auto", "custom"].includes(value.mode) ? value.mode : "mainland",
+      mode: ["mainland", "overseas", "custom"].includes(value.mode) ? value.mode : "mainland",
       customHosts: Array.isArray(value.customHosts) ? value.customHosts.slice(0, 32) : [],
       concurrency: Number.isSafeInteger(value.concurrency) ? value.concurrency : 8,
       autoConcurrency: value.autoConcurrency === true

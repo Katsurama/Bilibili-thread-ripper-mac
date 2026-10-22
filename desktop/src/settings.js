@@ -36,12 +36,6 @@
       return api.getSettings();
     },
     onSettings(fn) { listeners.add(fn); fn(api.getSettings()); return () => listeners.delete(fn); },
-    // The settings page and the player are separate pages: the player does the measuring, so
-    // the request goes through localStorage and the player's "storage" listener picks it up.
-    requestRetest() {
-      try { localStorage.setItem("BTR_Desktop.retest.v1", String(Date.now())); return true; }
-      catch (_) { return false; }
-    },
     update: Object.freeze({ state: "idle", message: "从 GitHub 检查 BTR 更新" })
   };
   root.addEventListener("storage", event => {

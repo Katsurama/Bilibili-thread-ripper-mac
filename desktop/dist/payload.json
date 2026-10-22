@@ -1,20 +1,20 @@
 {
   "version": "2026.10.19.1-d1",
   "adapterRevision": 1,
-  "sha256": "a4f66deeb695deab4214278382802df681836d1dae28dc0041c49756b0ba94be",
+  "sha256": "be8022ca16d24b246a844f46c5eac3f25ac7596c6acacae7cad7b7c16f2bdff4",
   "files": {
-    "shared/range-core.js": "4719439a8803ba530c6627604e7e7232ce6cef9223984b489059d8ce3f0be605",
+    "shared/range-core.js": "0ee0f7645e7649ba3b1c859bbaeb3a2e49c2bce0d36d773bbd1c8a3df82b8d7e",
     "shared/live-core.js": "02fc81314201780bc7713666de22587fc1c4f36f38dbc6a3a96a10d8439413eb",
-    "shared/cdn-resolver.js": "30dc7e1aa50dc757f9a3c5843178fb9790084833b52e7d148253c2127773bf52",
+    "shared/cdn-resolver.js": "6e946e7aadd269b63eadbb8e6f403b70cf40731f0ba9612133b3c8d69a485bf7",
     "shared/idm-downloader.js": "c772f5b57bb8fe860475548c8286ea29f7913fd8ce056756dfca84fe1f5405d3",
     "shared/runtime-notices.js": "54763461c5b6b167cf879612a2e1d0c6a71cebbde02e2702669a1fc7a2be7564",
     "shared/notification-view.js": "13bfd21f1d6768194d49e7103de38afbd4be6cb969999020424ad9799b892b37",
-    "src/settings.js": "62c7dbbc031b8d031498a65a5b0a49da8d5e8247e0a3c75ccbc91bb5faa8ca29",
-    "shared/live-hook.js": "94be365857f58a358a01bb5d872009585c50ae60cf9c98057f11cfa6d8cddfd8",
-    "src/transport.js": "af26b79e0eea78a7d2f8cf4e27fd14f12d34f6557fc2ebedc6bb7d35438db1b1",
+    "src/settings.js": "92e768d9df798c190545a94c3a63a26a40f59b1cac844c3845f715e9bab1ee0a",
+    "shared/live-hook.js": "f1905f7ca947a277d7de060cd4ba284fde78772a876d40649b65dc76c385496f",
+    "src/transport.js": "af22ff6a3f8f70dbded5346b6c3d0d9ac34f70f337daa0b18005c8b1ef594d84",
     "src/client.js": "65f56318eba1c1bf92f5b276b7731e3567877392e8454349c89a7005673b9818",
     "src/updates.js": "4be36c1110458d8edd04d2429b614f6f0190c23ed28c70586ac0c47edad541b2",
-    "src/settings-view.js": "1733e5711d98b22e1b10634a90384d9e74649b1f5c0fef8476442785f8f0e3a4",
-    "src/player-settings.js": "dd8d9a1083ba3318d7f89b829d554b118b0f49c321c4c3eb5a6b101e4c08dc01"
+    "src/settings-view.js": "64b2e016d4ffb149cac8df17a7f65c36a30b7d7ace55bcc70cd3491f0f2e77a1",
+    "src/player-settings.js": "21d151da22f7b2e4aa6dc33bd897f2490b237e4fbe48ba5cfa4fc1cf0891c348"
   }
 }

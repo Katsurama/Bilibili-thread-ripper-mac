@@ -211,10 +211,8 @@ test("short transfers do not keep an old speed measurement alive",()=>{
   for(let seconds=0;seconds<100;seconds+=20){advance(20000);resolver.success(URL_A,0);}
   assert.equal(resolver.speed(URL_A),0,"after 90 seconds without a real measurement the speed counts as unknown");
   assert.equal(resolver.status().find(item=>item.host==="upos-sz-mirrorali.bilivideo.com").state,"healthy","the node itself is known to work");
-  assert.equal(resolver.status().find(item=>item.host==="upos-sz-mirrorali.bilivideo.com").measuredAt,1e12,"the original measurement time is retained for display");
   resolver.success(URL_A,3000000);
   assert.ok(resolver.speed(URL_A)>0,"a real measurement brings it back");
-  assert.equal(resolver.status().find(item=>item.host==="upos-sz-mirrorali.bilivideo.com").measuredAt > 0,true);
 });
 
 test("small segments still give an unmeasured node a piece now and then",{timeout:30000},async()=>{

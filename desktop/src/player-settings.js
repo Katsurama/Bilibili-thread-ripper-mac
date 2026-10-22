@@ -40,7 +40,7 @@
     // The servers of the custom mode are picked in the client's settings page; this menu is too small for the list.
     const hint = document.createElement("div"); hint.className = "btr-custom-hint"; hint.hidden = true;
     panel.append(
-      group("线程撕裂者 CDN", "mode", [["mainland", "大陆 CDN"], ["overseas", "海外 CDN"], ["auto", "自动测速"], ["custom", "自定义"]]),
+      group("线程撕裂者 CDN", "mode", [["mainland", "大陆 CDN"], ["overseas", "海外 CDN"], ["custom", "自定义"]]),
       hint,
       group("并发线程", "concurrency", [["auto", "自动"], ...threads.map(value => [value, String(value)])])
     );

@@ -256,20 +256,6 @@
     }
   }
   root.XMLHttpRequest = DesktopXHR;
-  // The settings page and this player are separate pages. The settings page asks for a retest
-  // through localStorage; this page does the measuring, so it publishes the node states back.
-  const NODES_KEY = "BTR_Desktop.nodes.v1", RETEST_KEY = "BTR_Desktop.retest.v1";
-  function publishNodes() {
-    try {
-      const mode = api.getSettings().mode;
-      const last = [...resolvers.values()].pop();
-      const nodes = last ? last.status().slice(0, 24) : [];
-      const at = Date.now();
-      const measuredAt = nodes.reduce((latest, node) => Math.max(latest, Number(node.measuredAt) || 0), 0);
-      const measuredCount = nodes.filter(node => Number(node.measuredAt) > 0).length;
-      root.localStorage.setItem(NODES_KEY, JSON.stringify({ at, mode, measuredAt, measuredCount, candidateCount: nodes.length, nodes, banned: bans.hosts() }));
-    } catch (_) {}
-  }
   api.transport = Object.freeze({
     eligible,
     register(playinfo) {
@@ -286,23 +272,10 @@
       resolvers.clear(); representations.clear(); totals.clear(); bans.reset();
       log("已切换视频", "旧视频的下载任务已取消。", "info", "takeover");
     },
-    // Forgets the measured speeds and the bans, so the next segments measure every node again.
-    // Used by the settings page's "重新测速" button; nodes come and go during the day.
-    retest() {
-      if (!["auto", "custom"].includes(api.getSettings().mode)) return false;
-      resolvers.clear(); bans.reset();
-      log("已重新测速", "下一段开始重新测量所有节点的速度。", "info", "download");
-      return true;
-    },
     snapshot: () => ({ ...stats, generation, pending: pending.size, bannedHosts: bans.hosts(), threads: threadsNow() }),
     restore() {
       for (const controller of pending) controller.abort(new DOMException("加速已停止", "AbortError"));
       root.fetch = nativeFetch; root.XMLHttpRequest = NativeXHR;
     }
   });
-  // Only in a browser page: the dev tests load this file without localStorage or timers.
-  if (root.localStorage && root.addEventListener) {
-    root.addEventListener("storage", event => { if (event.key === RETEST_KEY) api.transport.retest(); });
-    setInterval(publishNodes, 3000);
-  }
 })(globalThis);

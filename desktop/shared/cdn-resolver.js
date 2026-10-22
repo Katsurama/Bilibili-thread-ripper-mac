@@ -84,7 +84,7 @@
       .filter(Boolean)
       .filter((value, index, all) => all.indexOf(value) === index);
     const custom = customServers(mode, customHosts);
-    const hosts = custom.length ? custom : mode === "overseas" ? OVERSEAS_HOSTS : mode === "auto" ? GLOBAL_HOSTS : MAINLAND_HOSTS;
+    const hosts = custom.length ? custom : mode === "overseas" ? OVERSEAS_HOSTS : MAINLAND_HOSTS;
     // A relay address moved to an ordinary node is refused there, so only ordinary addresses
     // are moved to the other nodes.
     const ordinary = originals.filter((url) => !isRelayUrl(url));
@@ -100,14 +100,11 @@
       : hosts.flatMap((host) => ordinary.map((url) => swapOrdinaryHost(url, host, true))))
       .map(safeMediaUrl)
       .filter(Boolean);
-    // In the auto mode every address Bilibili handed out is a candidate: the speeds pick.
     const allowedOriginals = custom.length
       ? originals.filter((url) => custom.includes(hostOf(url)))
-      : mode === "auto"
-        ? originals
-        : mode === "overseas"
-          ? originals.filter((url) => !MAINLAND_HOSTS.includes(hostOf(url)))
-          : originals.filter((url) => MAINLAND_HOSTS.includes(hostOf(url)));
+      : mode === "overseas"
+        ? originals.filter((url) => !MAINLAND_HOSTS.includes(hostOf(url)))
+        : originals.filter((url) => MAINLAND_HOSTS.includes(hostOf(url)));
     // Bilibili sometimes hands a track out only through relays. No other node can serve it
     // then, so the relays are used whatever the mode, rather than giving the video up.
     const relays = ordinary.length ? [] : originals;
@@ -200,8 +197,9 @@
     });
   }
 
-  // Measurements are made only as part of real media downloads. They expire after this period
-  // so a route that recovered can be explored again; there is no standalone background probe.
+  // How long a measured speed counts. A node in use is measured again with every segment; one
+  // that was left out for being slow goes back to the untested ones after this, and gets
+  // another try through the exploration slot.
   const MEASUREMENT_TTL_MS = 90000;
 
   function createResolver(representation, getMode, bans = null, getCustomHosts = null) {
@@ -374,8 +372,7 @@
         return {
           host: new URL(url).hostname,
           state: nodeBanned ? "banned" : (item.blockedUntil || 0) > now ? "blocked" : measurement(url)?.lastSuccessAt ? "healthy" : "untested",
-          bps: measurement(url)?.bps || 0,
-          measuredAt: measurement(url)?.lastMeasuredAt || 0
+          bps: measurement(url)?.bps || 0
         };
       });
     }

@@ -118,8 +118,7 @@
       const settings = api.getSettings();
       const custom = settings.mode === "custom" ? settings.customHosts : [];
       const hosts = custom.length ? custom
-        : settings.mode === "overseas" ? cdn.OVERSEAS_HOSTS
-          : settings.mode === "auto" ? cdn.GLOBAL_HOSTS : cdn.MAINLAND_HOSTS;
+        : settings.mode === "overseas" ? cdn.OVERSEAS_HOSTS : cdn.MAINLAND_HOSTS;
       candidates = hosts.map(host => {
         try {
           const routed = new URL(url);
