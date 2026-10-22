@@ -68,13 +68,17 @@ function decorate() {
     macLine("Bilibili 线程撕裂者桌面版的非官方 macOS 移植版本"),
     macLine(`此版本基于 Bilibili 线程撕裂者桌面版 ${macInfo.btrVersion || ""} 开发`),
     macLine("原作者明确表示不会做 macOS 版，请不要把这里的问题报到", macLink("原仓库", "upstream"), "，有问题请在", macLink("本仓库的 Issues", "issues"), "里反馈。"));
-  const copyright = (macInfo.license || "").split("\n").find(line => /^Copyright/i.test(line.trim()));
+  // Two upstream licenses: the desktop version, and the browser version whose live modules
+  // 直播加速（实验性） uses (absent when the bundle came from the upstream desktop repo).
+  const copyright = text => { const line = (text || "").split("\n").find(line => /^Copyright/i.test(line.trim())); return line ? "（" + line.trim() + "）" : ""; };
   const license = document.createElement("details"); license.className = "btr-mac-license";
   const summary = document.createElement("summary");
-  summary.textContent = `开源许可：Bilibili 线程撕裂者桌面版${copyright ? "（" + copyright.trim() + "）" : ""}以 MIT 许可证发布，本移植同样以 MIT 许可证发布`;
+  summary.textContent = `开源许可：Bilibili 线程撕裂者桌面版${copyright(macInfo.license)}${macInfo.liveLicense ? `和直播加速所用的 Bilibili 线程撕裂者网页版${copyright(macInfo.liveLicense)}` : ""}均以 MIT 许可证发布，本移植同样以 MIT 许可证发布`;
   license.append(summary);
-  if (macInfo.license) { const text = document.createElement("pre"); text.textContent = macInfo.license; license.append(text); }
+  const licenseText = (title, value) => { const text = document.createElement("pre"); text.textContent = `${title}\n\n${value}`; license.append(text); };
+  if (macInfo.license) licenseText("Bilibili 线程撕裂者桌面版", macInfo.license);
   else license.append(macLine("许可证全文见", macLink("原仓库", "upstream")));
+  if (macInfo.liveLicense) licenseText("Bilibili 线程撕裂者网页版（直播加速）", macInfo.liveLicense);
   about.append(license);
   const style = document.createElement("style");
   // Upstream gives only buttons a pointer; checkboxes, their labels and the thread slider kept the arrow.

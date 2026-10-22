@@ -175,7 +175,7 @@ rm -rf ~/btr-mac
 ## 📄 致谢与许可
 
 - BTR 下载内核与界面：[MrTangLuyao/Bilibili-thread-ripper-desktop](https://github.com/MrTangLuyao/Bilibili-thread-ripper-desktop)，作者 LouieTang，MIT 许可证；图标同样来自原项目
-- 直播加速模块：[MrTangLuyao/Bilibili-thread-ripper](https://github.com/MrTangLuyao/Bilibili-thread-ripper)（网页版），作者 LouieTang，MIT 许可证
+- 直播加速模块：[MrTangLuyao/Bilibili-thread-ripper](https://github.com/MrTangLuyao/Bilibili-thread-ripper)（网页版），版权归 Bilibili-thread-ripper contributors，MIT 许可证，全文见 [desktop/LICENSE-Bilibili-thread-ripper](desktop/LICENSE-Bilibili-thread-ripper)
 - `btr_mac.py` 的 ASAR 读写和注入方式移植自原仓库的 `tools/asar.cjs` 与 `tools/client-package.cjs`
 
 本仓库同样以 [MIT 开源协议](LICENSE) 发布。

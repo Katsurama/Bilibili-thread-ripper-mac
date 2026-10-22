@@ -15,7 +15,7 @@
     "src/settings-view.js": "60d214b534c0b99afb1cfca54692ea27c49212f2b61acb3284fd297ff5e9376b",
     "src/player-settings.js": "21d151da22f7b2e4aa6dc33bd897f2490b237e4fbe48ba5cfa4fc1cf0891c348"
   },
-  "liveSha256": "a87a827ec5fa05663b584fd1348e3bc59ad32beb349d38fc84941aa0210f5a4c",
+  "liveSha256": "5087ca1dc71bc512231f63900bac7414eae5784f72f59110e934a7b2e925a0fa",
   "liveFiles": {
     "shared/range-core.js": "0ee0f7645e7649ba3b1c859bbaeb3a2e49c2bce0d36d773bbd1c8a3df82b8d7e",
     "shared/live-core.js": "314ee29a7be9241f71de9488b8944973c6ab539db367614fa2d279814634203e",

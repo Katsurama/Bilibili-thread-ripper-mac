@@ -157,6 +157,16 @@ def upstream_license(bundle_path):
         return None
 
 
+def web_license(bundle_path):
+    """LICENSE of the browser version, whose live modules the live bundle carries (desktop/LICENSE-Bilibili-thread-ripper)."""
+    path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(bundle_path))), "LICENSE-Bilibili-thread-ripper")
+    try:
+        with open(path, encoding="utf-8") as file:
+            return file.read().strip()
+    except OSError:
+        return None
+
+
 def bundle_version(bundle):
     match = re.match(r"globalThis\.__BTR_DESKTOP_RELEASE__=(\{.*?\});", bundle.decode("utf-8"))
     return json.loads(match.group(1)).get("version") if match else None
@@ -178,7 +188,7 @@ def patch(original_path, bundle_path, output_path, install_root):
     preload = payload("preload.cjs")
     if preload.count("__BTR_BUNDLE__") != 1 or preload.count("__BTR_MAC_INFO__") != 1:
         raise ValueError("preload.cjs 的注入位置不对")
-    mac_info = {"macVersion": mac_version(install_root), "btrVersion": bundle_version(bundle), "license": upstream_license(bundle_path)}
+    mac_info = {"macVersion": mac_version(install_root), "btrVersion": bundle_version(bundle), "license": upstream_license(bundle_path), "liveLicense": web_license(bundle_path)}
     preload = preload.replace("__BTR_MAC_INFO__", json.dumps(mac_info, ensure_ascii=False))
     archive.set(BOOTSTRAP_FILE, payload("bootstrap.cjs"))
     archive.set(MAINTAIN_FILE, payload("maintain.cjs"))

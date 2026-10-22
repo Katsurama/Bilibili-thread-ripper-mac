@@ -14,8 +14,10 @@ const prefix = `globalThis.__BTR_DESKTOP_RELEASE__=${JSON.stringify({ version: c
 const join = list => list.map(file => `\n/* ${file} */\n${fs.readFileSync(path.join(root, file), "utf8")}\n`).join("");
 const bundle = prefix + join(files);
 // A frame can be offered the live bundle more than once (dom-ready, then a reload of the same
-// document); only the first run counts.
-const live = `(function () {\nif (globalThis.__BTR_LIVE_BUNDLE__) return;\nObject.defineProperty(globalThis, "__BTR_LIVE_BUNDLE__", { value: ${JSON.stringify(config.version)} });\n${join(liveFiles).split("__BTR_VERSION__").join(config.version)}\n})();\n`;
+// document); only the first run counts. live-core.js and live-hook.js come from the browser
+// version, whose MIT license must travel with them.
+const webLicense = fs.readFileSync(path.join(root, "LICENSE-Bilibili-thread-ripper"), "utf8").trim().replace(/\*\//g, "* /");
+const live = `/*! live-core.js and live-hook.js: Bilibili 线程撕裂者, https://github.com/MrTangLuyao/Bilibili-thread-ripper\n\n${webLicense}\n*/\n(function () {\nif (globalThis.__BTR_LIVE_BUNDLE__) return;\nObject.defineProperty(globalThis, "__BTR_LIVE_BUNDLE__", { value: ${JSON.stringify(config.version)} });\n${join(liveFiles).split("__BTR_VERSION__").join(config.version)}\n})();\n`;
 fs.mkdirSync(path.join(root, "dist"), { recursive: true });
 fs.writeFileSync(path.join(root, "dist", "desktop.js"), bundle);
 fs.writeFileSync(path.join(root, "dist", "live.js"), live);
