@@ -1,53 +1,103 @@
 "use strict";
-const { test } = require("node:test");
-const assert = require("node:assert/strict");
-const fs = require("node:fs");
-const path = require("node:path");
-const vm = require("node:vm");
-
-function load() {
-  const context = vm.createContext({ URL });
-  context.globalThis = context;
-  vm.runInContext(fs.readFileSync(path.join(__dirname, "../shared/live-core.js"), "utf8"), context);
-  return context.__BILI_LIVE_CORE__;
+// The live module's logic layer: playinfo parsing, playlist parsing, P2P URL handling
+// and the host pool.
+const {test}=require("node:test"),assert=require("node:assert/strict"),fs=require("node:fs"),path=require("node:path"),vm=require("node:vm");
+const SOURCE=path.join(__dirname,"../shared");
+function load(){
+  const context=vm.createContext({URL,console});
+  context.globalThis=context;
+  context.__now=1e12;
+  vm.runInContext("Date.now=()=>globalThis.__now;",context);
+  vm.runInContext(fs.readFileSync(path.join(SOURCE,"live-core.js"),"utf8"),context,{filename:"live-core.js"});
+  return {live:context.__BILI_LIVE_CORE__,advance:ms=>{context.__now+=ms;}};
 }
 
-const playlist = "https://upos-sz-mirrorali.bilivideo.com/live-bvc/room/720p.m3u8";
-const init = "https://upos-sz-mirrorali.bilivideo.com/live-bvc/room/init.m4s";
-const segment = "https://upos-sz-mirrorali.bilivideo.com/live-bvc/room/seg-1.m4s";
-
-test("live URLs are narrowly scoped", () => {
-  const core = load();
-  assert.equal(core.isLivePageUrl("https://live.bilibili.com/123"), true);
-  assert.equal(core.isLivePageUrl("https://www.bilibili.com/video/BV1"), false);
-  assert.equal(core.isLivePlaylistUrl(playlist), true);
-  assert.equal(core.isLiveSegmentUrl(segment), true);
-  assert.equal(core.isLiveSegmentUrl("https://upos-sz-mirrorali.bilivideo.com/upgcxcode/1.m4s"), false);
+test("live URL classification and P2P handling",()=>{
+  const {live}=load();
+  const seg="https://d1--ov-gotcha207.bilivideo.com/live-bvc/123/live_1234_5678/122742541.m4s";
+  assert.equal(live.isLiveSegmentUrl(seg),true);
+  assert.equal(live.isLiveSegmentUrl("https://example.com/live-bvc/1/a.m4s"),false,"only bilivideo hosts");
+  assert.equal(live.isLiveSegmentUrl("https://d1--ov-gotcha207.bilivideo.com/upgcxcode/1/1-1-30080.m4s"),false,"VOD paths are not live segments");
+  assert.equal(live.isLivePlaylistUrl("https://d1--ov-gotcha207.bilivideo.com/live-bvc/123/live_1234_5678/index.m3u8?expires=1&len=0"),true);
+  assert.equal(live.isP2pUrl("https://xy1x2x3x4xy.mcdn.bilivideo.cn:4483/v1/resource/x.m4s"),true);
+  assert.equal(live.isP2pUrl("https://a-b-302ppio.example.com/x"),true);
+  assert.equal(live.isP2pUrl(seg),false);
+  assert.equal(
+    live.unwrapProxyUrl("https://cache.smtcdns.net/d1--cn-gotcha204.bilivideo.com/live-bvc/1/live_1_2/3.m4s?a=1"),
+    "https://d1--cn-gotcha204.bilivideo.com/live-bvc/1/live_1_2/3.m4s?a=1"
+  );
+  assert.equal(live.unwrapProxyUrl(seg),"","ordinary URLs stay untouched");
 });
 
-test("fMP4 media playlists resolve init and segment URLs", () => {
-  const core = load();
-  const parsed = core.parseM3u8(`#EXTM3U
-#EXT-X-MAP:URI="../room/init.m4s"
-#EXTINF:2.0,
-seg-1.m4s
-#EXTINF:2.0,
-seg-2.m4s`, playlist);
-  assert.equal(parsed.initSegment, init);
-  assert.deepEqual(Array.from(parsed.segments), [
-    segment,
-    "https://upos-sz-mirrorali.bilivideo.com/live-bvc/room/seg-2.m4s"
-  ]);
-  assert.equal(core.parseM3u8("#EXTM3U\n#EXT-X-STREAM-INF:BANDWIDTH=1\nchild.m3u8", playlist), null);
-  assert.equal(core.parseM3u8("#EXTM3U\n#EXTINF:2,\nseg.ts", playlist), null);
+test("getRoomPlayInfo parsing drops P2P entries and keeps official nodes",()=>{
+  const {live}=load();
+  const payload={data:{playurl_info:{playurl:{stream:[
+    {protocol_name:"http_hls",format:[{format_name:"fmp4",codec:[{codec_name:"avc",current_qn:10000,accept_qn:[10000,400],
+      base_url:"/live-bvc/123/live_1_2/index.m3u8?expires=9",
+      url_info:[
+        {host:"https://d1--ov-gotcha207.bilivideo.com",extra:"&sig=a"},
+        {host:"https://xy0x1x.mcdn.bilivideo.cn:4483",extra:"&sig=b"},
+        {host:"https://d1--ov-gotcha208.bilivideo.com",extra:"&sig=c"}
+      ]}]}]},
+    {protocol_name:"http_stream",format:[{format_name:"flv",codec:[{codec_name:"avc",current_qn:10000,accept_qn:[10000],
+      base_url:"/live-bvc/123/live_1_2.flv?expires=9",
+      url_info:[{host:"https://d1--ov-gotcha07.bilivideo.com",extra:"&sig=d"}]}]}]}
+  ]}}}};
+  const streams=live.parseRoomPlayInfo(payload);
+  assert.equal(streams.length,2);
+  const fmp4=streams.find(s=>s.format==="fmp4");
+  assert.equal(fmp4.qn,10000);
+  assert.deepEqual(Array.from(fmp4.urls,u=>u.host),["https://d1--ov-gotcha207.bilivideo.com","https://d1--ov-gotcha208.bilivideo.com"],"the mcdn P2P entry is dropped");
+  assert.equal(live.parseRoomPlayInfo({}).length,0);
 });
 
-test("the safety gate defaults off and rejects non-live or ranged requests", () => {
-  const core = load();
-  const base = { pageUrl: "https://live.bilibili.com/123", url: segment };
-  assert.equal(core.shouldHandleRequest(base), false);
-  assert.equal(core.shouldHandleRequest({ ...base, liveEnabled: true }), true);
-  assert.equal(core.shouldHandleRequest({ ...base, liveEnabled: true, pageUrl: "https://bilipc.bilibili.com/player.html" }), false);
-  assert.equal(core.shouldHandleRequest({ ...base, liveEnabled: true, headers: { Range: "bytes=0-1" } }), false);
-  assert.equal(core.shouldHandleRequest({ ...base, liveEnabled: true, method: "POST" }), false);
+test("live playlist parsing: map, segments, numbers, resolution against the playlist URL",()=>{
+  const {live}=load();
+  const text=[
+    "#EXTM3U","#EXT-X-VERSION:7","#EXT-X-TARGETDURATION:1",
+    '#EXT-X-MAP:URI="h1789460289.m4s"',
+    "#EXTINF:1.00,","122742541.m4s",
+    "#EXTINF:1.00,","122742542.m4s",
+    "#EXTINF:0.98,","122742543.m4s",""
+  ].join("\n");
+  const playlistUrl="https://d1--ov-gotcha207.bilivideo.com/live-bvc/123/live_1_2/index.m3u8?expires=9&sig=a";
+  const parsed=live.parseM3u8(text,playlistUrl);
+  assert.equal(parsed.mapUrl,"https://d1--ov-gotcha207.bilivideo.com/live-bvc/123/live_1_2/h1789460289.m4s");
+  assert.equal(parsed.segments.length,3);
+  assert.equal(parsed.segments[0].url,"https://d1--ov-gotcha207.bilivideo.com/live-bvc/123/live_1_2/122742541.m4s");
+  assert.equal(parsed.segments[2].duration,0.98);
+  assert.equal(parsed.lastNum,122742543);
+  assert.equal(live.segmentNumber("122742543.m4s"),122742543);
+  assert.equal(live.segmentNumber("h1789460289.m4s"),1789460289);
+});
+
+test("the host pool ranks by proof and first-byte time, blocks failures, bans silent nodes",()=>{
+  const {live,advance}=load();
+  const banned=[];
+  const pool=live.createHostPool({onBan:host=>banned.push(host)});
+  pool.add("origin.bilivideo.com",true);
+  pool.add("cand-a.bilivideo.com");
+  pool.add("cand-b.bilivideo.com");
+  assert.deepEqual(Array.from(pool.pick(1)),["origin.bilivideo.com"],"the proven origin leads before any measurement");
+  assert.deepEqual(Array.from(pool.unproven()).sort(),["cand-a.bilivideo.com","cand-b.bilivideo.com"]);
+  // A fast probe on cand-a beats the slower origin.
+  pool.success("cand-a.bilivideo.com",80,4e6);
+  pool.success("origin.bilivideo.com",900,1e6);
+  assert.deepEqual(Array.from(pool.pick(2)),["cand-a.bilivideo.com","origin.bilivideo.com"]);
+  // A failure blocks briefly; the pool falls back to the others.
+  pool.failure("cand-a.bilivideo.com",1024);
+  assert.deepEqual(Array.from(pool.pick(1)),["origin.bilivideo.com"]);
+  advance(30000);
+  assert.deepEqual(Array.from(pool.pick(1)),["cand-a.bilivideo.com"],"the block expires");
+  // Two empty replies ban a node for the stream.
+  pool.failure("cand-b.bilivideo.com",0);
+  assert.deepEqual(Array.from(banned),[]);
+  pool.failure("cand-b.bilivideo.com",0);
+  assert.deepEqual(Array.from(banned),["cand-b.bilivideo.com"]);
+  advance(60000);
+  assert.ok(!pool.pick(3).includes("cand-b.bilivideo.com"),"a banned node stays out even after the block window");
+  assert.equal(pool.status().find(s=>s.host==="cand-b.bilivideo.com").state,"banned");
+  // A success on a previously banned node lifts the ban (the node recovered).
+  pool.success("cand-b.bilivideo.com",50,5e6);
+  assert.ok(pool.pick(3).includes("cand-b.bilivideo.com"));
 });

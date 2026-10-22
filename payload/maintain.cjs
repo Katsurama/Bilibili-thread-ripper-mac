@@ -32,12 +32,6 @@ function trusted(event) {
   try { const url = new URL(frame.url); return url.origin === "https://bilipc.bilibili.com" && ["/index.html", "/player.html"].includes(url.pathname); }
   catch (_) { return false; }
 }
-function trustedLive(event) {
-  const frame = event.senderFrame;
-  if (!frame) return false;
-  try { return new URL(frame.url).origin === "https://live.bilibili.com"; }
-  catch (_) { return false; }
-}
 
 // electron.net follows the system proxy, unlike Node's https.
 function getJson(net, url) {
@@ -61,19 +55,11 @@ function register(electron) {
   const installed = JSON.parse(fs.readFileSync(path.join(__dirname, "installed.json"), "utf8"));
   let pending = null, latest = null, checkedAt = 0, operation = "";
   let autoEnabled = null, timer = null, generation = 0, stopped = false;
-  let liveSettings = { enabled: true, liveEnabled: false, mode: "mainland", customHosts: [], concurrency: 8, autoConcurrency: true };
   const windows = new Map();
-  const liveWindows = new Map();
   const remember = event => windows.set(event.sender, event);
   function activeEvents() {
     return [...windows.values()].filter(event => {
       if (event.sender.isDestroyed() || !trusted(event)) { windows.delete(event.sender); return false; }
-      return true;
-    });
-  }
-  function activeLiveEvents() {
-    return [...liveWindows.values()].filter(event => {
-      if (event.sender.isDestroyed() || !trustedLive(event)) { liveWindows.delete(event.sender); return false; }
       return true;
     });
   }
@@ -121,24 +107,6 @@ function register(electron) {
     remember(event);
     if (autoEnabled === null || (value.changed === true && autoEnabled !== value.enabled)) { autoEnabled = value.enabled; schedule(STARTUP); }
     return { enabled: autoEnabled };
-  });
-  ipcMain.handle("btr-desktop:set-live-settings", (event, value) => {
-    if (!trusted(event) || !value || typeof value !== "object") throw Error("Untrusted live settings");
-    liveSettings = {
-      enabled: value.enabled !== false,
-      liveEnabled: value.liveEnabled === true,
-      mode: ["mainland", "overseas", "custom"].includes(value.mode) ? value.mode : "mainland",
-      customHosts: Array.isArray(value.customHosts) ? value.customHosts.slice(0, 32) : [],
-      concurrency: Number.isSafeInteger(value.concurrency) ? value.concurrency : 8,
-      autoConcurrency: value.autoConcurrency === true
-    };
-    for (const liveEvent of activeLiveEvents()) liveEvent.sender.send("btr-desktop:live-settings", liveSettings);
-    return { ...liveSettings, customHosts: liveSettings.customHosts.slice() };
-  });
-  ipcMain.handle("btr-desktop:get-live-settings", event => {
-    if (!trustedLive(event)) throw Error("Untrusted live sender");
-    liveWindows.set(event.sender, event);
-    return { ...liveSettings, customHosts: liveSettings.customHosts.slice() };
   });
 
   ipcMain.handle("btr-desktop:update-check", async event => {

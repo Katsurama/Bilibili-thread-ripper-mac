@@ -12,9 +12,12 @@
     // video servers and drops anything else.
     // 自动线程数 is on unless switched off, as in the browser version; concurrency is then only
     // the manual choice, used again when it is switched off.
-    return { enabled: s.enabled, liveEnabled: false, episodeEnabled: s.episodeEnabled, autoConcurrency: value?.autoConcurrency !== false, concurrency: s.concurrency, mode: s.mode, customHosts: s.customHosts, debugNotices: s.debugNotices, errorNotices: s.errorNotices, debugCategories: s.debugCategories, autoCheckUpdates: value?.autoCheckUpdates !== false, revision: REVISION };
+    return { enabled: s.enabled, liveEnabled: s.liveEnabled, autoConcurrency: value?.autoConcurrency !== false, concurrency: s.concurrency, mode: s.mode, customHosts: s.customHosts, debugNotices: s.debugNotices, errorNotices: s.errorNotices, debugCategories: s.debugCategories, autoCheckUpdates: value?.autoCheckUpdates !== false, revision: REVISION };
   };
   let current;
+  // macOS: the main process injects the live player code only while 直播加速（实验性） is on, so
+  // it is told the switch when a client page starts and whenever it changes.
+  const tellLive = () => root.postMessage({ channel: "__BTR_DESKTOP_UPDATE__", type: "live-config", enabled: current.liveEnabled === true }, root.location.origin);
   try {
     const saved = JSON.parse(localStorage.getItem(KEY) || "null");
     const outdated = !!saved && saved.revision !== REVISION;
@@ -31,8 +34,9 @@
     setSettings(patch) {
       const next = normalize({ ...current, ...patch });
       localStorage.setItem(KEY, JSON.stringify(next)); // Failure must not pretend to save.
+      const liveChanged = next.liveEnabled !== current.liveEnabled;
       current = next; emit(); channel?.postMessage(current);
-      root.postMessage({ channel: "__BTR_DESKTOP_UPDATE__", type: "live-settings", settings: current }, root.location.origin);
+      if (liveChanged) tellLive();
       return api.getSettings();
     },
     onSettings(fn) { listeners.add(fn); fn(api.getSettings()); return () => listeners.delete(fn); },
@@ -44,5 +48,5 @@
   });
   if (channel) channel.onmessage = event => { current = normalize(event.data); emit(); };
   Object.defineProperty(root, "__BTR_DESKTOP__", { value: api });
-  root.postMessage({ channel: "__BTR_DESKTOP_UPDATE__", type: "live-settings", settings: current }, root.location.origin);
+  tellLive();
 })(globalThis);

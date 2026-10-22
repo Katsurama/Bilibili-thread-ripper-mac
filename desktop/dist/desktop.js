@@ -143,73 +143,6 @@ globalThis.__BTR_DESKTOP_RELEASE__={"version":"2026.10.19.1-d1","adapterRevision
 })(globalThis);
 
 
-/* shared/live-core.js */
-(function installLiveCore(root) {
-  "use strict";
-
-  const LIVE_ORIGIN = "https://live.bilibili.com";
-  const LIVE_HOST_RE = /(?:^|\.)bilivideo\.(?:com|cn|net)$/i;
-  const M4S_RE = /\.m4s$/i;
-  const M3U8_RE = /\.m3u8$/i;
-
-  function parseUrl(value, base) {
-    try { return new URL(value, base); } catch (_error) { return null; }
-  }
-
-  function isLivePageUrl(value) {
-    const url = parseUrl(value);
-    return url?.protocol === "https:" && url.origin === LIVE_ORIGIN;
-  }
-
-  function isLivePlaylistUrl(value) {
-    const url = parseUrl(value);
-    return url?.protocol === "https:" && LIVE_HOST_RE.test(url.hostname) && M3U8_RE.test(url.pathname);
-  }
-
-  function isLiveSegmentUrl(value) {
-    const url = parseUrl(value);
-    return url?.protocol === "https:" && LIVE_HOST_RE.test(url.hostname)
-      && url.pathname.includes("/live-bvc/") && M4S_RE.test(url.pathname);
-  }
-
-  function parseM3u8(text, playlistUrl) {
-    if (typeof text !== "string" || !isLivePlaylistUrl(playlistUrl)) return null;
-    const lines = text.split(/\r?\n/).map(line => line.trim()).filter(Boolean);
-    if (lines[0] !== "#EXTM3U" || lines.some(line => line.startsWith("#EXT-X-STREAM-INF"))) return null;
-    let initSegment = null;
-    const segments = [];
-    for (const line of lines) {
-      if (line.startsWith("#EXT-X-MAP:")) {
-        const match = /(?:^|,)URI="([^"]+)"/.exec(line.slice("#EXT-X-MAP:".length));
-        if (!match) return null;
-        initSegment = parseUrl(match[1], playlistUrl)?.href || null;
-      } else if (!line.startsWith("#")) {
-        const url = parseUrl(line, playlistUrl)?.href;
-        if (!url || !isLiveSegmentUrl(url)) return null;
-        segments.push(url);
-      }
-    }
-    if (!initSegment || !isLiveSegmentUrl(initSegment) || !segments.length) return null;
-    return Object.freeze({ initSegment, segments: Object.freeze(segments) });
-  }
-
-  function shouldHandleRequest({ pageUrl, liveEnabled, url, method = "GET", headers } = {}) {
-    if (liveEnabled !== true || !isLivePageUrl(pageUrl) || String(method).toUpperCase() !== "GET") return false;
-    const range = headers && typeof headers.get === "function" ? headers.get("range") : headers?.Range || headers?.range;
-    if (range) return false;
-    return isLivePlaylistUrl(url) || isLiveSegmentUrl(url);
-  }
-
-  root.__BILI_LIVE_CORE__ = Object.freeze({
-    isLivePageUrl,
-    isLivePlaylistUrl,
-    isLiveSegmentUrl,
-    parseM3u8,
-    shouldHandleRequest
-  });
-})(globalThis);
-
-
 /* shared/cdn-resolver.js */
 (function installCdnResolver(root) {
   "use strict";
@@ -2292,9 +2225,12 @@ globalThis.__BTR_DESKTOP_RELEASE__={"version":"2026.10.19.1-d1","adapterRevision
     // video servers and drops anything else.
     // 自动线程数 is on unless switched off, as in the browser version; concurrency is then only
     // the manual choice, used again when it is switched off.
-    return { enabled: s.enabled, liveEnabled: false, episodeEnabled: s.episodeEnabled, autoConcurrency: value?.autoConcurrency !== false, concurrency: s.concurrency, mode: s.mode, customHosts: s.customHosts, debugNotices: s.debugNotices, errorNotices: s.errorNotices, debugCategories: s.debugCategories, autoCheckUpdates: value?.autoCheckUpdates !== false, revision: REVISION };
+    return { enabled: s.enabled, liveEnabled: s.liveEnabled, autoConcurrency: value?.autoConcurrency !== false, concurrency: s.concurrency, mode: s.mode, customHosts: s.customHosts, debugNotices: s.debugNotices, errorNotices: s.errorNotices, debugCategories: s.debugCategories, autoCheckUpdates: value?.autoCheckUpdates !== false, revision: REVISION };
   };
   let current;
+  // macOS: the main process injects the live player code only while 直播加速（实验性） is on, so
+  // it is told the switch when a client page starts and whenever it changes.
+  const tellLive = () => root.postMessage({ channel: "__BTR_DESKTOP_UPDATE__", type: "live-config", enabled: current.liveEnabled === true }, root.location.origin);
   try {
     const saved = JSON.parse(localStorage.getItem(KEY) || "null");
     const outdated = !!saved && saved.revision !== REVISION;
@@ -2311,8 +2247,9 @@ globalThis.__BTR_DESKTOP_RELEASE__={"version":"2026.10.19.1-d1","adapterRevision
     setSettings(patch) {
       const next = normalize({ ...current, ...patch });
       localStorage.setItem(KEY, JSON.stringify(next)); // Failure must not pretend to save.
+      const liveChanged = next.liveEnabled !== current.liveEnabled;
       current = next; emit(); channel?.postMessage(current);
-      root.postMessage({ channel: "__BTR_DESKTOP_UPDATE__", type: "live-settings", settings: current }, root.location.origin);
+      if (liveChanged) tellLive();
       return api.getSettings();
     },
     onSettings(fn) { listeners.add(fn); fn(api.getSettings()); return () => listeners.delete(fn); },
@@ -2324,250 +2261,7 @@ globalThis.__BTR_DESKTOP_RELEASE__={"version":"2026.10.19.1-d1","adapterRevision
   });
   if (channel) channel.onmessage = event => { current = normalize(event.data); emit(); };
   Object.defineProperty(root, "__BTR_DESKTOP__", { value: api });
-  root.postMessage({ channel: "__BTR_DESKTOP_UPDATE__", type: "live-settings", settings: current }, root.location.origin);
-})(globalThis);
-
-
-/* shared/live-hook.js */
-(function installLiveHook(root) {
-  "use strict";
-  const core = root.__BILI_LIVE_CORE__, cdn = root.__BILI_CDN_RESOLVER_FACTORY__, api = root.__BTR_DESKTOP__;
-  if (!core || !cdn || !api || root.location?.origin !== "https://live.bilibili.com") return;
-  const nativeFetch = root.fetch?.bind(root);
-  const NativeXHR = root.XMLHttpRequest;
-  if (!nativeFetch || root.__BTR_LIVE_HOOK__) return;
-  root.__BTR_LIVE_HOOK__ = true;
-  root.__BTR_LIVE_STATUS__ = "loaded";
-  const active = () => {
-    const settings = api.getSettings();
-    return settings.enabled && settings.liveEnabled;
-  };
-  let acceleratedSegments = 0;
-  const badge = document.createElement("button");
-  badge.type = "button";
-  badge.textContent = "BTR 直播加速：关闭";
-  badge.style.cssText = "position:fixed;z-index:2147483647;right:12px;bottom:12px;padding:5px 9px;border:1px solid rgba(255,255,255,.45);border-radius:5px;background:rgba(20,20,20,.88);color:#fff;font:12px -apple-system,BlinkMacSystemFont,sans-serif;cursor:pointer";
-  document.getElementById?.("btr-live-preload-status")?.remove();
-  function updateBadge() {
-    badge.textContent = active()
-      ? `BTR 直播加速：${acceleratedSegments ? `已接管 ${acceleratedSegments} 个分片` : "已启用，等待分片"}`
-      : "BTR 直播加速：关闭";
-    badge.style.display = "";
-  }
-  root.__BTR_LIVE_STATUS__ = active() ? "enabled" : "disabled";
-  function installBadge() {
-    if (document.documentElement && !badge.isConnected) document.documentElement.append(badge);
-    updateBadge();
-  }
-  badge.addEventListener("click", () => {
-    try { api.setSettings({ liveEnabled: !api.getSettings().liveEnabled }); } catch (_) {}
-    updateBadge();
-    updateQualityControl();
-  });
-  const qualityControl = document.createElement("button");
-  qualityControl.type = "button";
-  qualityControl.className = "btr-live-toggle";
-  qualityControl.style.cssText = "margin-left:8px;padding:4px 8px;border:1px solid currentColor;border-radius:4px;background:transparent;color:inherit;font:inherit;cursor:pointer";
-  qualityControl.addEventListener("click", () => {
-    try { api.setSettings({ liveEnabled: !api.getSettings().liveEnabled }); } catch (_) {}
-    updateBadge();
-    updateQualityControl();
-  });
-  function updateQualityControl() {
-    const enabled = active();
-    qualityControl.textContent = enabled
-      ? `BTR 加速：${acceleratedSegments ? `已接管 ${acceleratedSegments} 个分片` : "已启用，等待分片"}`
-      : "BTR 加速：关";
-    qualityControl.setAttribute("aria-pressed", String(enabled));
-    qualityControl.title = enabled
-      ? "已启用；点击关闭直播加速"
-      : "点击开启直播加速";
-  }
-  function installQualityControl() {
-    if (!document.querySelector) return;
-    const enhancement = [...document.querySelectorAll("button,[role=button],span,div")].find(node => {
-      const text = String(node.textContent || "").trim();
-      return /^画质增强(?:\s|$)/.test(text) && text.length < 40;
-    });
-    if (enhancement?.parentElement) {
-      const row = enhancement.parentElement;
-      if (qualityControl.parentElement !== row.parentElement) row.parentElement?.insertBefore(qualityControl, row);
-      qualityControl.style.cssText = "display:block;width:100%;box-sizing:border-box;margin:0;padding:13px 40px 13px 40px;border:0;background:transparent;color:inherit;text-align:left;font:inherit;cursor:pointer";
-      qualityControl.dataset.btrQualityMenu = "true";
-    } else if (!qualityControl.isConnected) {
-      const candidates = [...document.querySelectorAll("button,[role=button],[aria-label]")].filter(node => {
-        const text = `${node.textContent || ""} ${node.getAttribute("aria-label") || ""}`;
-        return /画质|清晰度|quality/i.test(text) && text.length < 80;
-      });
-      const anchor = candidates[candidates.length - 1];
-      if (anchor?.parentElement) anchor.parentElement.append(qualityControl);
-    }
-    updateQualityControl();
-  }
-  installBadge();
-  installXhrHook();
-  new MutationObserver(() => { installBadge(); installQualityControl(); }).observe(document.documentElement, { childList: true, subtree: true });
-  api.onSettings(() => { root.__BTR_LIVE_STATUS__ = active() ? "enabled" : "disabled"; updateBadge(); updateQualityControl(); });
-  installQualityControl();
-
-  const segmentCache = new Map();
-  const prefetching = new Set();
-  const MAX_CACHE_ENTRIES = 4;
-  const MAX_CACHE_BYTES = 8 * 1024 * 1024;
-  const MAX_PREFETCH = 2;
-
-  function cacheResponse(url, response) {
-    if (!response?.ok || !response.body) return;
-    void response.clone().arrayBuffer().then(buffer => {
-      if (!buffer.byteLength || buffer.byteLength > MAX_CACHE_BYTES) return;
-      segmentCache.delete(url);
-      segmentCache.set(url, {
-        bytes: new Uint8Array(buffer),
-        headers: [...response.headers.entries()]
-      });
-      while (segmentCache.size > MAX_CACHE_ENTRIES) segmentCache.delete(segmentCache.keys().next().value);
-    }).catch(() => {});
-  }
-
-  function cachedResponse(url) {
-    const item = segmentCache.get(url);
-    if (!item) return null;
-    segmentCache.delete(url);
-    segmentCache.set(url, item);
-    return new Response(item.bytes.slice(), { status: 200, headers: item.headers });
-  }
-
-  function resolver(url) {
-    return cdn.createResolver({ baseUrl: url }, () => api.getSettings().mode, null, () => api.getSettings().customHosts);
-  }
-  const xhrRoutes = new Map();
-  function routeLiveUrl(url) {
-    if (!active()) return null;
-    let candidates = resolver(url).urls().filter(candidate =>
-      core.isLivePlaylistUrl(candidate) || core.isLiveSegmentUrl(candidate));
-    if (!candidates.length && core.isLivePlaylistUrl(url)) {
-      const settings = api.getSettings();
-      const custom = settings.mode === "custom" ? settings.customHosts : [];
-      const hosts = custom.length ? custom
-        : settings.mode === "overseas" ? cdn.OVERSEAS_HOSTS : cdn.MAINLAND_HOSTS;
-      candidates = hosts.map(host => {
-        try {
-          const routed = new URL(url);
-          routed.hostname = host;
-          routed.port = "";
-          return routed.href;
-        } catch (_) { return null; }
-      }).filter(Boolean).slice(0, 4);
-    }
-    if (!candidates.length) return null;
-    const key = String(url);
-    const index = (xhrRoutes.get(key) || 0) % candidates.length;
-    xhrRoutes.set(key, index + 1);
-    return candidates[index];
-  }
-  function installXhrHook() {
-    if (!NativeXHR?.prototype?.open || !NativeXHR.prototype.send || root.__BTR_LIVE_XHR_HOOK__) return;
-    root.__BTR_LIVE_XHR_HOOK__ = true;
-    const nativeOpen = NativeXHR.prototype.open;
-    const nativeSend = NativeXHR.prototype.send;
-    NativeXHR.prototype.open = function btrLiveOpen(method, url, ...rest) {
-      const originalUrl = String(url);
-      const routedUrl = routeLiveUrl(originalUrl);
-      this.__btrLiveUrl = routedUrl ? originalUrl : "";
-      return nativeOpen.call(this, method, routedUrl || url, ...rest);
-    };
-    NativeXHR.prototype.send = function btrLiveSend(body) {
-      if (this.__btrLiveUrl) {
-        const mark = () => {
-          if (this.status >= 200 && this.status < 400) {
-            acceleratedSegments += 1;
-            updateBadge();
-            updateQualityControl();
-          }
-        };
-        this.addEventListener("load", mark, { once: true });
-        this.addEventListener("error", () => {
-          this.__btrLiveUrl = "";
-        }, { once: true });
-      }
-      return nativeSend.call(this, body);
-    };
-  }
-  async function raceSegment(url, init) {
-    const candidates = resolver(url).urls().filter(core.isLiveSegmentUrl).slice(0, 3);
-    root.__BTR_LIVE_STATUS__ = candidates.length ? "routing" : "fallback";
-    if (!candidates.length) return nativeFetch(url, init);
-    const controllers = candidates.map(() => new AbortController());
-    let settled = false;
-    const request = (candidate, index) => new Promise((resolve, reject) => {
-      const timer = setTimeout(() => controllers[index].abort(), 5500);
-      nativeFetch(candidate, { ...init, signal: controllers[index].signal }).then(response => {
-        clearTimeout(timer);
-        if (!response.ok) throw Object.assign(new Error(`直播节点 HTTP ${response.status}`), { response });
-        if (settled) return;
-        settled = true;
-        acceleratedSegments += 1;
-        root.__BTR_LIVE_STATUS__ = "accelerated";
-        updateBadge();
-        updateQualityControl();
-        controllers.forEach((controller, other) => { if (other !== index) controller.abort(); });
-        cacheResponse(url, response);
-        resolve(response);
-      }).catch(error => { clearTimeout(timer); reject(error); });
-    });
-    try {
-      return await Promise.any(candidates.map(request));
-    } catch (_) {
-      return nativeFetch(url, init);
-    }
-  }
-
-  async function prefetchSegments(urls) {
-    for (const url of urls.slice(-MAX_PREFETCH)) {
-      if (segmentCache.has(url) || prefetching.has(url)) continue;
-      prefetching.add(url);
-      try {
-        const response = await raceSegment(url, { method: "GET" });
-        if (!response.ok) continue;
-        await response.arrayBuffer();
-      } catch (_) {
-        // Prefetch is opportunistic; playback continues through the normal request path.
-      } finally {
-        prefetching.delete(url);
-      }
-    }
-  }
-
-  root.fetch = async function btrLiveFetch(input, init = {}) {
-    const url = typeof input === "string" ? input : input?.url;
-    const method = init.method || input?.method || "GET";
-    const headers = init.headers || input?.headers;
-    if (!active() || !core.shouldHandleRequest({ pageUrl: location.href, liveEnabled: true, url, method, headers })) {
-      return nativeFetch(input, init);
-    }
-    if (core.isLivePlaylistUrl(url)) {
-      const response = await nativeFetch(input, init);
-      if (!response.ok) return response;
-      const text = await response.clone().text();
-      const playlist = core.parseM3u8(text, url);
-      if (playlist) void prefetchSegments(playlist.segments);
-      return response;
-    }
-    const cached = cachedResponse(url);
-    if (cached) return cached;
-    return raceSegment(url, init);
-  };
-  root.addEventListener("pagehide", () => {
-    root.fetch = nativeFetch;
-    if (NativeXHR?.prototype && root.__BTR_LIVE_XHR_HOOK__) {
-      delete root.__BTR_LIVE_XHR_HOOK__;
-    }
-    xhrRoutes.clear();
-    segmentCache.clear();
-    prefetching.clear();
-    badge.remove();
-    qualityControl.remove();
-  }, { once: true });
+  tellLive();
 })(globalThis);
 
 
@@ -3007,7 +2701,6 @@ globalThis.__BTR_DESKTOP_RELEASE__={"version":"2026.10.19.1-d1","adapterRevision
     #btr-desktop-settings #btr-desktop-uninstall:hover:not(:disabled){background:#d04450}
     #btr-desktop-settings button:disabled{opacity:.55;cursor:default}
     #btr-desktop-settings .btr-inline{margin:0}#btr-desktop-settings .btr-threads-row.btr-auto{opacity:.45}#btr-desktop-settings .btr-threads-row.btr-auto input{cursor:default}
-    #btr-desktop-settings .btr-live-row{opacity:.5}#btr-desktop-settings .btr-live-row label{color:var(--text3,#9499a0);cursor:default}
     #btr-desktop-settings input{accent-color:#d45b88}#btr-desktop-settings input[type=checkbox]{width:16px;height:16px;vertical-align:middle;margin:0 8px 0 0}
     #btr-desktop-settings input[type=range]{width:min(290px,55vw)}#btr-desktop-settings output{min-width:35px;color:#ef77a3;font-weight:600}
     #btr-desktop-settings .btr-debug-options{display:grid;grid-template-columns:repeat(2,minmax(145px,1fr));gap:12px;max-width:440px;padding:12px 0 6px}
@@ -3043,7 +2736,7 @@ globalThis.__BTR_DESKTOP_RELEASE__={"version":"2026.10.19.1-d1","adapterRevision
         </div>
         <div class="btr-row"><label><input type="checkbox" data-setting="autoConcurrency">自动线程数</label><span class="btr-note btr-inline">BTR将智能选择需要的线程数。</span></div>
         <div class="btr-row btr-threads-row"><label class="btr-label" for="btr-desktop-threads">并发线程</label><input id="btr-desktop-threads" type="range" min="0" max="5" step="1"><output></output></div>
-        <div class="btr-row btr-live-row"><label><input type="checkbox" data-setting="liveEnabled" disabled>直播加速（敬请期待）</label><span class="btr-note btr-inline">此功能暂未开放，默认关闭。</span></div>
+        <div class="btr-row btr-live-row"><label><input type="checkbox" data-setting="liveEnabled">直播加速（实验性）</label><span class="btr-note btr-inline">打开后，直播间画面右下角的清晰度菜单里会多一个开关，可以随时关掉。</span></div>
         <div class="btr-row"><label><input type="checkbox" data-setting="errorNotices">显示错误</label><label><input type="checkbox" data-setting="debugNotices">Debug 模式</label></div>
         <div class="btr-debug-wrap" hidden><div class="btr-row"><button type="button" data-select="all">全选</button><button type="button" data-select="none">全不选</button></div><div class="btr-debug-options"></div></div>
         <div class="btr-row"><label><input type="checkbox" data-setting="autoCheckUpdates">自动检查 BTR 更新</label></div>

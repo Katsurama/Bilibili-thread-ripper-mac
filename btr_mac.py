@@ -20,6 +20,7 @@ BOOTSTRAP_FILE = "btr-desktop/bootstrap.cjs"
 PRELOAD_FILE = "btr-desktop/preload.cjs"
 MAINTAIN_FILE = "btr-desktop/maintain.cjs"
 BUNDLE_FILE = "btr-desktop/desktop.js"
+LIVE_FILE = "btr-desktop/live.js"
 INSTALLED_FILE = "btr-desktop/installed.json"
 PAYLOAD_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "payload")
 
@@ -183,6 +184,11 @@ def patch(original_path, bundle_path, output_path, install_root):
     archive.set(MAINTAIN_FILE, payload("maintain.cjs"))
     archive.set(PRELOAD_FILE, preload.replace("__BTR_BUNDLE__", json.dumps(bundle.decode("utf-8"))))
     archive.set(BUNDLE_FILE, bundle)
+    # The live bundle is built next to desktop.js in this repo; the upstream fallback has none,
+    # and the client then simply gets no live acceleration.
+    live_path = os.path.join(os.path.dirname(os.path.abspath(bundle_path)), "live.js")
+    if os.path.isfile(live_path):
+        archive.set(LIVE_FILE, open(live_path, "rb").read())
     archive.set(INSTALLED_FILE, json.dumps({"schema": 1, "platform": "darwin", "version": bundle_version(bundle), "macVersion": mac_version(install_root), "clientVersion": info["clientVersion"], "originalSha256": sha(original), "payloadSha256": sha(bundle), "installRoot": os.path.abspath(install_root)}, ensure_ascii=False))
     patched = archive.pack()
     verify = Asar(patched)

@@ -4,44 +4,8 @@
 // btr_mac.py fills in two placeholders below (each must appear exactly once in this file): the bundle
 // as a JSON string, and the macOS port's version, the bundled BTR version and the upstream LICENSE text.
 (() => {
-const isDesktopPage = process.isMainFrame && location.origin === "https://bilipc.bilibili.com" && /^\/(index|player)\.html$/.test(location.pathname);
-const isLivePage = location.origin === "https://live.bilibili.com";
-if (!isDesktopPage && !isLivePage) return;
-const { ipcRenderer, webFrame } = require("electron"), channel = "__BTR_DESKTOP_UPDATE__";
-const code = __BTR_BUNDLE__;
-if (isLivePage) {
-  try {
-    document.documentElement?.setAttribute("data-btr-live-preload", "loaded");
-    const marker = document.createElement("div");
-    marker.id = "btr-live-preload-status";
-    marker.textContent = "BTR 直播：注入中";
-    marker.style.cssText = "position:fixed;z-index:2147483647;right:12px;bottom:12px;padding:5px 9px;border-radius:5px;background:rgba(20,20,20,.88);color:#fff;font:12px -apple-system,BlinkMacSystemFont,sans-serif;pointer-events:none";
-    (document.body || document.documentElement).append(marker);
-  } catch (_) {}
-  const inject = async settings => {
-    try { localStorage.setItem("BTR_Desktop.settings.v1", JSON.stringify(settings || { enabled: false, liveEnabled: false })); } catch (_) {}
-    try {
-      await webFrame.executeJavaScript(`${code}\n;globalThis.__BTR_LIVE_BUNDLE_LOADED__ = true;`, true);
-      try { document.documentElement?.setAttribute("data-btr-live-bundle", "loaded"); } catch (_) {}
-      window.postMessage({ channel, type: "live-injection", state: "loaded" }, location.origin);
-    } catch (error) {
-      try { document.documentElement?.setAttribute("data-btr-live-bundle", "failed"); } catch (_) {}
-      try {
-        const marker = document.getElementById?.("btr-live-preload-status");
-        if (marker) marker.textContent = "BTR 直播：注入失败";
-      } catch (_) {}
-      console.error("BTR live injection:", error?.message || String(error));
-      window.postMessage({ channel, type: "live-injection", state: "failed" }, location.origin);
-    }
-  };
-  ipcRenderer.on("btr-desktop:live-settings", (_event, settings) => inject(settings));
-  window.addEventListener("message", event => {
-    if (event.source !== window || event.data?.channel !== channel || event.data.type !== "live-settings") return;
-    ipcRenderer.invoke("btr-desktop:set-live-settings", event.data.settings).catch(() => {});
-  });
-  ipcRenderer.invoke("btr-desktop:get-live-settings").then(inject).catch(() => inject({ enabled: false, liveEnabled: false }));
-  return;
-}
+if (!process.isMainFrame || location.origin !== "https://bilipc.bilibili.com" || !/^\/(index|player)\.html$/.test(location.pathname)) return;
+const { ipcRenderer } = require("electron"), channel = "__BTR_DESKTOP_UPDATE__";
 let checking = false, acting = false, epoch = 0, configEpoch = 0;
 const send = result => window.postMessage({ channel, type: "result", result }, location.origin);
 ipcRenderer.on("btr-desktop:maintenance-result", (_event, result) => send(result));
@@ -53,9 +17,10 @@ window.addEventListener("message", async event => {
     if (ticket === configEpoch) window.postMessage({ channel, type: "auto-config", enabled: result.enabled }, location.origin);
   } catch (_) {}
 });
+// 直播加速（实验性）: the main process injects the live player code only while it is on.
 window.addEventListener("message", event => {
-  if (event.source !== window || event.data?.channel !== channel || event.data.type !== "live-settings") return;
-  ipcRenderer.invoke("btr-desktop:set-live-settings", event.data.settings).catch(() => {});
+  if (event.source !== window || event.data?.channel !== channel || event.data.type !== "live-config" || typeof event.data.enabled !== "boolean") return;
+  ipcRenderer.invoke("btr-desktop:live-config", event.data.enabled).catch(() => {});
 });
 window.addEventListener("message", async event => {
   if (event.source !== window || event.data?.channel !== channel || event.data.type !== "check" || checking || acting) return;
@@ -124,6 +89,7 @@ function decorate() {
 // The settings page lives in the main window only; the player page changes constantly (danmaku).
 if (location.pathname === "/index.html") new MutationObserver(decorate).observe(document, { childList: true, subtree: true });
 
+const code = __BTR_BUNDLE__;
 let injected = false;
 function inject() { if (injected || !document.documentElement) return; injected = true; observer.disconnect(); const script = document.createElement("script"); script.textContent = code; (document.head || document.documentElement).appendChild(script); script.remove(); }
 const observer = new MutationObserver(inject); observer.observe(document, { childList: true, subtree: true }); inject();
