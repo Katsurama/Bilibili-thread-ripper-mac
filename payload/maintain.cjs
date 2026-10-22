@@ -19,6 +19,11 @@ function newerMac(remote, local) {
   return false;
 }
 const INTERVAL = 30 * 60 * 1000, STARTUP = 1500;
+// mac-version.json can mark an update as important: "minVersion" (installed versions below it must
+// update) and "notice" (why, shown as plain text). Such an update is announced with a dialog once
+// per launch, even with 自动检查 BTR 更新 off, so a moved repository or a security fix reaches
+// everyone instead of waiting on the settings page.
+const cleanNotice = value => typeof value === "string" ? value.replace(/[\u0000-\u001f\u007f]+/g, " ").trim().slice(0, 300) : "";
 // The macOS notice on the settings page can open only these pages, in the default browser.
 const LINKS = {
   repo: "https://github.com/Katsurama/Bilibili-thread-ripper-mac",
@@ -54,7 +59,7 @@ function register(electron) {
   const { app, ipcMain, dialog, BrowserWindow, net, shell } = electron;
   const installed = JSON.parse(fs.readFileSync(path.join(__dirname, "installed.json"), "utf8"));
   let pending = null, latest = null, checkedAt = 0, operation = "";
-  let autoEnabled = null, timer = null, generation = 0, stopped = false;
+  let autoEnabled = null, timer = null, generation = 0, stopped = false, alerted = false, criticalChecked = false;
   const windows = new Map();
   const remember = event => windows.set(event.sender, event);
   function activeEvents() {
@@ -71,8 +76,10 @@ function register(electron) {
     if (latest && Date.now() - checkedAt < 3000) return latest;
     pending = getJson(net, MAC_MANIFEST).then(mac => {
       if (mac?.schema !== 1 || !MAC_VERSION.test(mac.version)) throw Error("更新清单无效");
+      const critical = MAC_VERSION.test(mac.minVersion || "") && newerMac(mac.minVersion, installed.macVersion);
       latest = newerMac(mac.version, installed.macVersion)
-        ? { state: "available", manifest: { version: `macOS ${mac.version}` }, message: `发现 macOS 移植 ${mac.version}（当前 ${installed.macVersion || "未知"}）` }
+        ? { state: "available", manifest: { version: `macOS ${mac.version}` }, critical, notice: critical ? cleanNotice(mac.notice) : "",
+            message: `发现${critical ? "重要更新：" : " "}macOS 移植 ${mac.version}（当前 ${installed.macVersion || "未知"}）` }
         : { state: "current", manifest: { version: mac.version }, message: "当前已是最新版本" };
       checkedAt = Date.now();
       return latest;
@@ -86,7 +93,7 @@ function register(electron) {
     const ticket = ++generation;
     if (!autoEnabled || stopped) return;
     timer = setTimeout(async () => {
-      try { if (!operation && activeEvents().length) { const result = await inspect(); if (ticket === generation && !operation) publish(result); } }
+      try { if (!operation && activeEvents().length) { const result = await inspect(); if (ticket === generation && !operation) { publish(result); alertCritical(result); } } }
       catch (_) { /* Retry next interval. */ }
       finally { if (ticket === generation) schedule(); }
     }, delay);
@@ -94,10 +101,31 @@ function register(electron) {
   }
   app.once("before-quit", () => { stopped = true; generation++; clearTimeout(timer); });
 
+  // An important update: a dialog once per launch; 现在更新 goes straight to the update.
+  async function alertCritical(result) {
+    if (alerted || stopped || operation || !result?.critical || result.state !== "available") return;
+    const event = activeEvents()[0];
+    if (!event) return;
+    alerted = true;
+    const parent = BrowserWindow.fromWebContents(event.sender);
+    const options = { type: "warning", title: "BTR 重要更新", message: `请更新 BTR Desktop for macOS 到 ${result.manifest.version.replace(/^macOS /, "")}`,
+      detail: `${result.notice ? result.notice + "\n\n" : ""}当前版本 ${installed.macVersion || "未知"} 需要更新。选择“现在更新”会关闭哔哩哔哩，在“终端”里完成更新，完成后自动重新打开。`,
+      buttons: ["现在更新", "稍后"], defaultId: 0, cancelId: 1, noLink: true };
+    const answer = parent ? await dialog.showMessageBox(parent, options) : await dialog.showMessageBox(options);
+    if (answer.response === 0) publish(await maintain(event, false, true));
+  }
+  // Once per launch, whatever 自动检查 says: only an important update is acted on here.
+  function checkCritical() {
+    if (criticalChecked) return;
+    criticalChecked = true;
+    setTimeout(() => { if (!stopped) inspect().then(alertCritical, () => {}); }, STARTUP).unref?.();
+  }
+
   ipcMain.handle("btr-desktop:auto-config", (event, value) => {
     if (!trusted(event) || typeof value?.enabled !== "boolean") throw Error("Untrusted update settings");
     remember(event);
     if (autoEnabled === null || (value.changed === true && autoEnabled !== value.enabled)) { autoEnabled = value.enabled; schedule(STARTUP); }
+    checkCritical();
     return { enabled: autoEnabled };
   });
 
@@ -109,7 +137,7 @@ function register(electron) {
     catch (error) { return operation ? busy() : { state: "error", message: String(error.message).slice(0, 200) }; }
   });
 
-  async function maintain(event, remove) {
+  async function maintain(event, remove, confirmed = false) {
     if (!trusted(event)) return { state: "error", message: "无法处理此窗口的 BTR 操作" };
     if (operation) return busy();
     remember(event);
@@ -123,7 +151,7 @@ function register(electron) {
         : { type: "question", title: "检测到新的 BTR 线程撕裂者更新", message: `版本 ${result.manifest.version}`, detail: "将从 macOS 移植的 GitHub 仓库获取新版本。确认后会关闭哔哩哔哩，在“终端”里完成更新，完成后自动重新打开。", buttons: ["安装更新", "取消"], defaultId: 1, cancelId: 1, noLink: true };
       publish({ state: "confirming", message: remove ? "请确认是否卸载 BTR" : "请确认是否安装更新" });
       const parent = BrowserWindow.fromWebContents(event.sender);
-      const answer = parent ? await dialog.showMessageBox(parent, options) : await dialog.showMessageBox(options);
+      const answer = confirmed ? { response: 0 } : parent ? await dialog.showMessageBox(parent, options) : await dialog.showMessageBox(options);
       if (answer.response !== 0) return publish(remove ? { ...(latest || { state: "idle" }), message: "已取消卸载 BTR" } : { ...result, message: "已取消更新" });
       if (!installed.installRoot || !path.isAbsolute(installed.installRoot)) throw Error("找不到 BTR 安装目录，请在终端重新运行 install-mac.sh");
       const script = path.join(installed.installRoot, "install-mac.sh");

@@ -58,3 +58,44 @@ test("update moves a copy cloned from the old GitHub address to the current one"
   execFileSync("/bin/bash", ["-c", `say() { :; }; HERE=${JSON.stringify(dir)}; ${self}\n${body}`]);
   assert.equal(run("remote", "get-url", "origin"), "https://github.com/Katsurama/Bilibili-thread-ripper-mac.git");
 });
+
+// The important-update dialog: maintain.cjs with a fake Electron whose dialog answers 稍后.
+function launch(manifest, installedMac, autoEnabled) {
+  const os = require("node:os"), dir = fs.mkdtempSync(path.join(os.tmpdir(), "btr-critical-"));
+  fs.copyFileSync(path.join(__dirname, "../../payload/maintain.cjs"), path.join(dir, "maintain.cjs"));
+  fs.writeFileSync(path.join(dir, "installed.json"), JSON.stringify({ version: "2026.10.19.1-d1", macVersion: installedMac }));
+  const dialogs = [], sent = [], handlers = {};
+  const net = { request() {
+    const listeners = {};
+    return { on: (type, fn) => { listeners[type] = fn; }, abort() {}, end() {
+      const body = JSON.stringify(manifest);
+      setImmediate(() => listeners.response({ statusCode: 200, on(type, fn) { if (type === "data") setImmediate(() => fn(Buffer.from(body))); if (type === "end") setImmediate(() => setImmediate(fn)); } }));
+    } };
+  } };
+  const electron = {
+    app: { once() {}, quit() {} }, ipcMain: { handle: (name, fn) => { handlers[name] = fn; } }, net, shell: {},
+    BrowserWindow: { fromWebContents: () => null },
+    dialog: { showMessageBox: async options => { dialogs.push(options); return { response: 1 }; } }
+  };
+  require(path.join(dir, "maintain.cjs")).register(electron);
+  const frame = { url: "https://bilipc.bilibili.com/index.html" };
+  const event = { senderFrame: frame, sender: { mainFrame: frame, isDestroyed: () => false, send: (_channel, value) => sent.push(value) } };
+  handlers["btr-desktop:auto-config"](event, { enabled: autoEnabled });
+  return new Promise(resolve => setTimeout(() => resolve({ dialogs, sent }), 2200));
+}
+
+test("an installed version below minVersion gets one dialog with the notice, even with auto check off", { timeout: 10000 }, async () => {
+  const manifest = { schema: 1, version: "2026.10.22.7", minVersion: "2026.10.22.7", notice: "仓库地址已更换，请尽快更新。\u0007" };
+  for (const autoEnabled of [true, false]) {
+    const { dialogs } = await launch(manifest, "2026.10.22.6", autoEnabled);
+    assert.equal(dialogs.length, 1, `auto check ${autoEnabled ? "on" : "off"}: one dialog per launch`);
+    assert.match(dialogs[0].message, /2026\.10\.22\.7/);
+    assert.match(dialogs[0].detail, /^仓库地址已更换，请尽快更新。\n/, "the notice is shown as plain text, control characters dropped");
+    assert.deepEqual(dialogs[0].buttons, ["现在更新", "稍后"]);
+  }
+});
+
+test("an ordinary update, or a version already at minVersion, gets no dialog", { timeout: 10000 }, async () => {
+  assert.equal((await launch({ schema: 1, version: "2026.10.22.7" }, "2026.10.22.6", true)).dialogs.length, 0);
+  assert.equal((await launch({ schema: 1, version: "2026.10.22.8", minVersion: "2026.10.22.7" }, "2026.10.22.7", true)).dialogs.length, 0);
+});
