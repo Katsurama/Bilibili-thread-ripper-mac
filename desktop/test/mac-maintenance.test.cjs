@@ -85,14 +85,14 @@ function launch(manifest, installedMac, autoEnabled) {
 }
 
 test("an installed version below minVersion gets one dialog with the notice, even with auto check off", { timeout: 10000 }, async () => {
-  const manifest = { schema: 1, version: "2026.10.22.7", minVersion: "2026.10.22.7", notice: "仓库地址已更换，请尽快更新。\u0007" };
+  const manifest = { schema: 1, version: "2026.10.22.7", minVersion: "2026.10.22.7", changelog: ["仓库地址已更换\u0007", "修复了一个安全问题", 3] };
   for (const autoEnabled of [true, false]) {
     const { dialogs } = await launch(manifest, "2026.10.22.6", autoEnabled);
     assert.equal(dialogs.length, 1, `auto check ${autoEnabled ? "on" : "off"}: one dialog per launch`);
     assert.match(dialogs[0].message, /2026\.10\.22\.7/);
     assert.match(dialogs[0].title, /BTR Desktop for macOS/, "the plugin names itself: the dialog sits over Bilibili's window");
     assert.match(dialogs[0].detail, /^这条提醒来自 BTR Desktop for macOS 插件/);
-    assert.match(dialogs[0].detail, /\n\n仓库地址已更换，请尽快更新。\n\n/, "the notice is shown as plain text, control characters dropped");
+    assert.match(dialogs[0].detail, /\n\n更新内容：\n· 仓库地址已更换\n· 修复了一个安全问题$/, "the changelog closes the dialog, as plain text lines; control characters and non-strings dropped");
     assert.deepEqual(dialogs[0].buttons, ["现在更新", "稍后"]);
   }
 });

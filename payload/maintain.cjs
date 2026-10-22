@@ -20,10 +20,15 @@ function newerMac(remote, local) {
 }
 const INTERVAL = 30 * 60 * 1000, STARTUP = 1500;
 // mac-version.json can mark an update as important: "minVersion" (installed versions below it must
-// update) and "notice" (why, shown as plain text). Such an update is announced with a dialog once
-// per launch, even with 自动检查 BTR 更新 off, so a moved repository or a security fix reaches
-// everyone instead of waiting on the settings page.
-const cleanNotice = value => typeof value === "string" ? value.replace(/[\u0000-\u001f\u007f]+/g, " ").trim().slice(0, 300) : "";
+// update). Such an update is announced with a dialog once per launch, even with 自动检查 BTR 更新
+// off, so a moved repository or a security fix reaches everyone instead of waiting on the settings
+// page. "changelog" (a list of lines) is shown at the bottom of the update dialogs, as plain text:
+// control characters dropped, at most 10 lines of 120 characters.
+const cleanChangelog = value => (Array.isArray(value) ? value : [])
+  .filter(line => typeof line === "string")
+  .map(line => line.replace(/[\u0000-\u001f\u007f]+/g, " ").trim().slice(0, 120))
+  .filter(Boolean).slice(0, 10);
+const changelogText = lines => lines.length ? `\n\n更新内容：\n${lines.map(line => `· ${line}`).join("\n")}` : "";
 // The macOS notice on the settings page can open only these pages, in the default browser.
 const LINKS = {
   repo: "https://github.com/Katsurama/Bilibili-thread-ripper-mac",
@@ -78,7 +83,7 @@ function register(electron) {
       if (mac?.schema !== 1 || !MAC_VERSION.test(mac.version)) throw Error("更新清单无效");
       const critical = MAC_VERSION.test(mac.minVersion || "") && newerMac(mac.minVersion, installed.macVersion);
       latest = newerMac(mac.version, installed.macVersion)
-        ? { state: "available", manifest: { version: `macOS ${mac.version}` }, critical, notice: critical ? cleanNotice(mac.notice) : "",
+        ? { state: "available", manifest: { version: `macOS ${mac.version}` }, critical, changelog: cleanChangelog(mac.changelog),
             message: `发现${critical ? "重要更新：" : " "}macOS 移植 ${mac.version}（当前 ${installed.macVersion || "未知"}）` }
         : { state: "current", manifest: { version: mac.version }, message: "当前已是最新版本" };
       checkedAt = Date.now();
@@ -110,7 +115,7 @@ function register(electron) {
     const parent = BrowserWindow.fromWebContents(event.sender);
     // The dialog appears over Bilibili's window, so it says plainly that it comes from the plugin.
     const options = { type: "warning", title: "BTR Desktop for macOS 重要更新", message: `BTR Desktop for macOS 插件有重要更新：${result.manifest.version.replace(/^macOS /, "")}`,
-      detail: `这条提醒来自 BTR Desktop for macOS 插件。\n\n${result.notice ? result.notice + "\n\n" : ""}当前插件版本 ${installed.macVersion || "未知"} 需要更新。选择“现在更新”会关闭哔哩哔哩，在“终端”里完成更新，完成后自动重新打开。`,
+      detail: `这条提醒来自 BTR Desktop for macOS 插件。\n\n当前插件版本 ${installed.macVersion || "未知"} 需要更新。选择“现在更新”会关闭哔哩哔哩，在“终端”里完成更新，完成后自动重新打开。${changelogText(result.changelog || [])}`,
       buttons: ["现在更新", "稍后"], defaultId: 0, cancelId: 1, noLink: true };
     const answer = parent ? await dialog.showMessageBox(parent, options) : await dialog.showMessageBox(options);
     if (answer.response === 0) publish(await maintain(event, false, true));
@@ -149,7 +154,7 @@ function register(electron) {
       if (!remove && result.state !== "available") return result;
       const options = remove
         ? { type: "warning", title: "卸载 BTR", message: "确定卸载 BTR？", detail: "将关闭哔哩哔哩，在“终端”里用安装前的备份还原官方客户端，完成后重新打开，并删除备份和 BTR 的数据。不会删除账号、缓存和个人设置。", buttons: ["卸载 BTR", "取消"], defaultId: 1, cancelId: 1, noLink: true }
-        : { type: "question", title: "检测到新的 BTR 线程撕裂者更新", message: `版本 ${result.manifest.version}`, detail: "将从 macOS 移植的 GitHub 仓库获取新版本。确认后会关闭哔哩哔哩，在“终端”里完成更新，完成后自动重新打开。", buttons: ["安装更新", "取消"], defaultId: 1, cancelId: 1, noLink: true };
+        : { type: "question", title: "检测到新的 BTR 线程撕裂者更新", message: `版本 ${result.manifest.version}`, detail: "将从 macOS 移植的 GitHub 仓库获取新版本。确认后会关闭哔哩哔哩，在“终端”里完成更新，完成后自动重新打开。" + changelogText(result.changelog || []), buttons: ["安装更新", "取消"], defaultId: 1, cancelId: 1, noLink: true };
       publish({ state: "confirming", message: remove ? "请确认是否卸载 BTR" : "请确认是否安装更新" });
       const parent = BrowserWindow.fromWebContents(event.sender);
       const answer = confirmed ? { response: 0 } : parent ? await dialog.showMessageBox(parent, options) : await dialog.showMessageBox(options);
