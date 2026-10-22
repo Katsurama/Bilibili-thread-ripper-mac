@@ -272,7 +272,7 @@
         .sort(bySpeed);
       if (!pool.length) return urls();
       const firstRange = mediaRangeCount === 0;
-      const width = Math.min(firstRange ? 4 : 6, pool.length);
+      const width = Math.min(firstRange ? pool.length : 6, pool.length);
       let selected;
       const warmupRanges = getMode?.() === "mainland" ? 1 : 4;
       if (mediaRangeCount < warmupRanges) {
@@ -288,11 +288,12 @@
         // finding the good nodes quickly costs little.
         const measured = pool.filter((url) => measuredNow(url, now));
         const rest = pool.filter((url) => !measuredNow(url, now));
-        const explore = rest.length ? [rest[rangeCursor % rest.length]] : [];
-        rangeCursor = (rangeCursor + explore.length) % Math.max(1, pool.length);
+        const places = Math.min(rest.length, Math.max(1, width - measured.length));
+        const explore = Array.from({ length: places }, (_item, index) => rest[(rangeCursor + index) % rest.length]);
+        rangeCursor = (rangeCursor + places) % Math.max(1, pool.length);
         selected = [...measured.slice(0, width - explore.length), ...explore];
-        for (const url of measured) {
-          if (selected.length >= Math.min(6, pool.length)) break;
+        for (const url of pool) {
+          if (selected.length >= Math.min(3, pool.length)) break;
           if (!selected.includes(url)) selected.push(url);
         }
       }
@@ -312,7 +313,7 @@
       const candidates = unbanned([...originals, ...allUrls()]
         .filter((url, index, all) => all.indexOf(url) === index))
         .filter((url) => (health.get(url)?.blockedUntil || 0) <= now);
-      return candidates.slice(0, 4);
+      return candidates.slice(0, 8);
     }
 
     function rescueCandidates() {
