@@ -211,6 +211,7 @@ rm -rf ~/btr-mac
 
 ## ⚠️ 注意事项
 
+- **只从本仓库安装和更新**：本仓库的地址是 `https://github.com/Katsurama/Bilibili-thread-ripper-mac`（2026 年 10 月 22 日从旧用户名迁移过来）。更新时脚本会从 `~/btr-mac` 记录的地址下载代码并在你的电脑上运行，所以这个地址必须是本仓库。可以在终端运行 `git -C ~/btr-mac remote get-url origin` 确认；显示的不是上面的地址，就按[重新下载](#-重新下载)重新安装。更新到 2026.10.22.6 及以后的版本时，脚本会自动把旧地址改成新地址。
 - 本地签名后，macOS 不再认为这是哔哩哔哩官方签名的应用。备份里保留了原版，随时可以还原。
 - 官方客户端会根据 `Resources/app-update.yml` 判断自己是否被重新安装，判断为重装就会恢复默认设置并重新下载热更新。安装、更新和卸载时脚本会同步这条记录（`~/Library/Application Support/bilibili/resource/.appInfo`），避免设置被重置。
 - 欢迎在 Issues 里补充其他 macOS / 客户端版本的测试结果（`bash ~/btr-mac/install-mac.sh status` 可以看到客户端和 BTR 的版本）。
