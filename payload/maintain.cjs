@@ -79,11 +79,7 @@ function register(electron) {
   async function inspect() {
     if (pending) return pending;
     if (latest && Date.now() - checkedAt < 3000) return latest;
-    // BTR_MAC_MANIFEST_FILE (a local JSON file, set only when the client is started from a terminal)
-    // stands in for mac-version.json, to try the update dialogs before a release.
-    const local = process.env.BTR_MAC_MANIFEST_FILE;
-    const read = local && path.isAbsolute(local) ? fs.promises.readFile(local, "utf8").then(JSON.parse) : getJson(net, MAC_MANIFEST);
-    pending = read.then(mac => {
+    pending = getJson(net, MAC_MANIFEST).then(mac => {
       if (mac?.schema !== 1 || !MAC_VERSION.test(mac.version)) throw Error("更新清单无效");
       const critical = MAC_VERSION.test(mac.minVersion || "") && newerMac(mac.minVersion, installed.macVersion);
       latest = newerMac(mac.version, installed.macVersion)
