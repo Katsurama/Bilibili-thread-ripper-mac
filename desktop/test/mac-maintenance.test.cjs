@@ -38,11 +38,23 @@ function updateCheck(macVersion, installedMac) {
 test("a new upstream BTR release alone is not offered: the BTR code ships with this repository", async () => {
   const { result, requested } = await updateCheck("2026.10.22.5", "2026.10.22.5");
   assert.equal(result.state, "current");
-  assert.deepEqual(requested, ["https://raw.githubusercontent.com/luitao666-arch/Bilibili-thread-ripper-mac/main/mac-version.json"]);
+  assert.deepEqual(requested, ["https://raw.githubusercontent.com/Katsurama/Bilibili-thread-ripper-mac/main/mac-version.json"]);
 });
 
 test("a higher mac-version.json is offered, a lower one (a stale CDN copy) is not", async () => {
   assert.equal((await updateCheck("2026.10.22.6", "2026.10.22.5")).result.state, "available");
   assert.match((await updateCheck("2026.10.22.6", "2026.10.22.5")).result.message, /macOS 移植 2026\.10\.22\.6（当前 2026\.10\.22\.5）/);
   assert.equal((await updateCheck("2026.10.22.4", "2026.10.22.5")).result.state, "current");
+});
+
+test("update moves a copy cloned from the old GitHub address to the current one", () => {
+  const { execFileSync } = require("node:child_process"), os = require("node:os");
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "btr-remote-"));
+  const run = (...args) => execFileSync("git", ["-C", dir, ...args], { encoding: "utf8" }).trim();
+  run("init", "-q"); run("remote", "add", "origin", "https://github.com/someone-old/Bilibili-thread-ripper-mac.git");
+  // Only the remote fix of update(), without pulling or installing.
+  const body = script.match(/\n  if \[ -d "\$HERE\/\.git" \]; then\n[\s\S]*?\n  fi\n/)[0];
+  const self = script.match(/^SELF_URL=.*$/m)[0];
+  execFileSync("/bin/bash", ["-c", `say() { :; }; HERE=${JSON.stringify(dir)}; ${self}\n${body}`]);
+  assert.equal(run("remote", "get-url", "origin"), "https://github.com/Katsurama/Bilibili-thread-ripper-mac.git");
 });

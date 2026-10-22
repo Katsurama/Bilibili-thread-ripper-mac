@@ -8,7 +8,7 @@
 // latest.json moving on would otherwise offer an update that installing cannot bring.
 const path = require("path"), fs = require("fs");
 const { spawn } = require("child_process");
-const MAC_MANIFEST = "https://raw.githubusercontent.com/luitao666-arch/Bilibili-thread-ripper-mac/main/mac-version.json";
+const MAC_MANIFEST = "https://raw.githubusercontent.com/Katsurama/Bilibili-thread-ripper-mac/main/mac-version.json";
 const MAC_VERSION = /^\d+\.\d+\.\d+\.\d+$/;
 // GitHub raw files are cached for a few minutes on several CDN nodes, so a check can see an older
 // mac-version.json than the one installed. Only a higher macOS version counts as an update.
@@ -21,8 +21,8 @@ function newerMac(remote, local) {
 const INTERVAL = 30 * 60 * 1000, STARTUP = 1500;
 // The macOS notice on the settings page can open only these pages, in the default browser.
 const LINKS = {
-  repo: "https://github.com/luitao666-arch/Bilibili-thread-ripper-mac",
-  issues: "https://github.com/luitao666-arch/Bilibili-thread-ripper-mac/issues",
+  repo: "https://github.com/Katsurama/Bilibili-thread-ripper-mac",
+  issues: "https://github.com/Katsurama/Bilibili-thread-ripper-mac/issues",
   upstream: "https://github.com/MrTangLuyao/Bilibili-thread-ripper-desktop",
 };
 

@@ -29,6 +29,7 @@ APP="$(find_app)"
 DATA="${BTR_DATA:-$HOME/Library/Application Support/BTR-Mac}"
 BACKUP="$DATA/backup/$(basename "$APP")"
 REPO_URL="https://github.com/MrTangLuyao/Bilibili-thread-ripper-desktop"
+SELF_URL="https://github.com/Katsurama/Bilibili-thread-ripper-mac.git"
 HERE="$(cd "$(dirname "$0")" && pwd)"
 PATCHER="$HERE/btr_mac.py"
 ASAR="$APP/Contents/Resources/app.asar"
@@ -220,6 +221,15 @@ install() {
 # 先更新本仓库（安装脚本和注入代码），再用新脚本完成安装。安装和更新都这样，
 # 免得本地仓库是旧的时候装进去旧代码。
 update() {
+  # 本仓库换过 GitHub 用户名。旧地址靠 GitHub 的跳转才能用，旧用户名被别人注册后就会失效，
+  # 所以把还指向旧地址的副本改到现在的地址。拉取之后的新脚本也会再跑一次，保证改过来。
+  if [ -d "$HERE/.git" ]; then
+    case "$(git -C "$HERE" remote get-url origin 2>/dev/null || true)" in
+      "$SELF_URL"|"${SELF_URL%.git}") ;;
+      https://github.com/*/Bilibili-thread-ripper-mac|https://github.com/*/Bilibili-thread-ripper-mac.git)
+        git -C "$HERE" remote set-url origin "$SELF_URL" && say "已把本仓库的下载地址改为 ${SELF_URL}" ;;
+    esac
+  fi
   if [ -z "$PULLED" ] && [ -d "$HERE/.git" ]; then
     say "更新 macOS 安装脚本"
     git -C "$HERE" pull --ff-only -q || say "注意：安装脚本更新失败，继续使用当前版本"
