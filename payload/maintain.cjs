@@ -3,13 +3,13 @@
 // process checks the manifests, confirms with a dialog and starts install-mac.sh, which hands the
 // work to Terminal and exits; then the client quits. Terminal waits for the client to exit, does
 // the work and opens the client again. IPC channel names and result states match the Windows build, so the
-// shared settings page works unchanged. Besides the upstream BTR manifest it also reads this
-// repository's mac-version.json, so changes to the macOS port are offered as updates too.
+// shared settings page works unchanged. The BTR code is bundled in this repository (desktop/), so
+// only this repository's mac-version.json decides whether there is an update: upstream's
+// latest.json moving on would otherwise offer an update that installing cannot bring.
 const path = require("path"), fs = require("fs");
 const { spawn } = require("child_process");
-const MANIFEST = "https://raw.githubusercontent.com/MrTangLuyao/Bilibili-thread-ripper-desktop/main/latest.json";
 const MAC_MANIFEST = "https://raw.githubusercontent.com/luitao666-arch/Bilibili-thread-ripper-mac/main/mac-version.json";
-const VERSION = /^\d+\.\d+\.\d+\.\d+-d[1-9]\d*$/, MAC_VERSION = /^\d+\.\d+\.\d+\.\d+$/;
+const MAC_VERSION = /^\d+\.\d+\.\d+\.\d+$/;
 // GitHub raw files are cached for a few minutes on several CDN nodes, so a check can see an older
 // mac-version.json than the one installed. Only a higher macOS version counts as an update.
 function newerMac(remote, local) {
@@ -69,19 +69,11 @@ function register(electron) {
   async function inspect() {
     if (pending) return pending;
     if (latest && Date.now() - checkedAt < 3000) return latest;
-    // The macOS manifest is optional: when it cannot be read, the upstream result still counts.
-    pending = Promise.all([getJson(net, MANIFEST), getJson(net, MAC_MANIFEST).catch(() => null)]).then(([value, mac]) => {
-      if (!value || value.schema !== 1 || !VERSION.test(value.version)) throw Error("更新清单无效");
-      const macVersion = mac?.schema === 1 && MAC_VERSION.test(mac.version) ? mac.version : null;
-      // Upstream rule: any difference counts, including a rollback.
-      const btrChanged = value.version !== installed.version;
-      const macChanged = macVersion !== null && newerMac(macVersion, installed.macVersion);
-      const found = [], label = [];
-      if (btrChanged) { found.push(`BTR ${value.version}（当前 ${installed.version || "未知"}）`); label.push(value.version); }
-      if (macChanged) { found.push(`macOS 移植 ${macVersion}（当前 ${installed.macVersion || "未知"}）`); label.push(`macOS ${macVersion}`); }
-      latest = found.length
-        ? { state: "available", manifest: { version: label.join(" + ") }, message: `发现 ${found.join("，")}` }
-        : { state: "current", manifest: { version: value.version }, message: "当前已是最新版本" };
+    pending = getJson(net, MAC_MANIFEST).then(mac => {
+      if (mac?.schema !== 1 || !MAC_VERSION.test(mac.version)) throw Error("更新清单无效");
+      latest = newerMac(mac.version, installed.macVersion)
+        ? { state: "available", manifest: { version: `macOS ${mac.version}` }, message: `发现 macOS 移植 ${mac.version}（当前 ${installed.macVersion || "未知"}）` }
+        : { state: "current", manifest: { version: mac.version }, message: "当前已是最新版本" };
       checkedAt = Date.now();
       return latest;
     }).finally(() => { pending = null; });
@@ -128,7 +120,7 @@ function register(electron) {
       if (!remove && result.state !== "available") return result;
       const options = remove
         ? { type: "warning", title: "卸载 BTR", message: "确定卸载 BTR？", detail: "将关闭哔哩哔哩，在“终端”里用安装前的备份还原官方客户端，完成后重新打开，并删除备份和 BTR 的数据。不会删除账号、缓存和个人设置。", buttons: ["卸载 BTR", "取消"], defaultId: 1, cancelId: 1, noLink: true }
-        : { type: "question", title: "检测到新的 BTR 线程撕裂者更新", message: `版本 ${result.manifest.version}`, detail: "将从 BTR Desktop 官方仓库获取新版本，并更新 macOS 安装脚本。确认后会关闭哔哩哔哩，在“终端”里完成更新，完成后自动重新打开。", buttons: ["安装更新", "取消"], defaultId: 1, cancelId: 1, noLink: true };
+        : { type: "question", title: "检测到新的 BTR 线程撕裂者更新", message: `版本 ${result.manifest.version}`, detail: "将从 macOS 移植的 GitHub 仓库获取新版本。确认后会关闭哔哩哔哩，在“终端”里完成更新，完成后自动重新打开。", buttons: ["安装更新", "取消"], defaultId: 1, cancelId: 1, noLink: true };
       publish({ state: "confirming", message: remove ? "请确认是否卸载 BTR" : "请确认是否安装更新" });
       const parent = BrowserWindow.fromWebContents(event.sender);
       const answer = parent ? await dialog.showMessageBox(parent, options) : await dialog.showMessageBox(options);
