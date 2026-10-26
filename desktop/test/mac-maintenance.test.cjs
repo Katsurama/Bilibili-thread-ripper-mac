@@ -57,6 +57,8 @@ test("update moves a copy cloned from the old GitHub address to the current one"
   const self = script.match(/^SELF_URL=.*$/m)[0];
   execFileSync("/bin/bash", ["-c", `say() { :; }; HERE=${JSON.stringify(dir)}; ${self}\n${body}`]);
   assert.equal(run("remote", "get-url", "origin"), "https://github.com/Katsurama/Bilibili-thread-ripper-mac.git");
+  // Updating downloads from the public address whatever origin says, so no SSH key is asked for.
+  assert.match(script, /git -C "\$HERE" pull --ff-only -q "\$SELF_URL" main/);
 });
 
 // The important-update dialog: maintain.cjs with a fake Electron whose dialog answers 稍后.

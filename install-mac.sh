@@ -222,7 +222,8 @@ update() {
   fi
   if [ -z "$PULLED" ] && [ -d "$HERE/.git" ]; then
     say "更新 macOS 安装脚本"
-    git -C "$HERE" pull --ff-only -q || say "注意：安装脚本更新失败，继续使用当前版本"
+    # 公开仓库，直接用网址下载，不用账号和密钥：origin 被改成 SSH 地址时也不会去碰 SSH 密钥。
+    git -C "$HERE" pull --ff-only -q "$SELF_URL" main || say "注意：安装脚本更新失败，继续使用当前版本"
     exec /bin/bash "$HERE/install-mac.sh" "$ACTION" --pulled
   fi
   install
