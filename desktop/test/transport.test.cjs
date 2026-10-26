@@ -1,7 +1,7 @@
 "use strict";
 // The adapter's transport (src/transport.js) on top of the shared download core, without a
-// browser: the requests the client makes, the way it makes them. What test/browser.cjs cannot
-// do is decide how a node behaves byte by byte: slow, stalling, or never answering.
+// browser: the requests the client makes, the way it makes them, and how a node behaves byte
+// by byte: slow, stalling, or never answering.
 const { test } = require("node:test"), assert = require("node:assert/strict"), fs = require("node:fs"), path = require("node:path"), vm = require("node:vm");
 const root = path.resolve(__dirname, "..");
 const HOSTS = ["upos-sz-mirrorali.bilivideo.com", "upos-sz-mirrorhw.bilivideo.com", "upos-sz-mirrorbos.bilivideo.com", "upos-sz-mirror08c.bilivideo.com"];

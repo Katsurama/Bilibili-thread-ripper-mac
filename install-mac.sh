@@ -1,13 +1,13 @@
 #!/bin/bash
 # BTR Desktop macOS 安装脚本
-#   ./install-mac.sh            拉取本仓库和 BTR 的最新版本后安装（已经装过就是更新）
+#   ./install-mac.sh            拉取本仓库的最新版本后安装（已经装过就是更新）
 #   ./install-mac.sh update     同上
 #   ./install-mac.sh uninstall  还原官方客户端（用安装前的完整备份）
 #   ./install-mac.sh status     查看状态
 # 客户端设置页里的“安装更新 / 卸载 BTR”会以 --from-app <客户端进程号> 在后台调用本脚本：
 # 等客户端退出后，在“终端”里运行同一个操作（输出同时记到 ~/Library/Application Support/BTR-Mac/maintain.log），
 # 成功后重新打开客户端，失败时终端窗口停留显示错误。
-# 环境变量：BTR_APP=客户端路径  BTR_REPO=本地 BTR Desktop 仓库  BTR_REF=分支或标签（默认 main）
+# 环境变量：BTR_APP=客户端路径  BTR_REPO=本地 BTR Desktop 仓库（用它的 dist/desktop.js，默认用本仓库 desktop/dist 里的）
 set -euo pipefail
 
 # 找客户端：BTR_APP 指定的路径 → 两个“应用程序”文件夹里的 哔哩哔哩.app → Spotlight 按 bundle id 找。
@@ -28,7 +28,6 @@ find_app() {
 APP="$(find_app)"
 DATA="${BTR_DATA:-$HOME/Library/Application Support/BTR-Mac}"
 BACKUP="$DATA/backup/$(basename "$APP")"
-REPO_URL="https://github.com/MrTangLuyao/Bilibili-thread-ripper-desktop"
 SELF_URL="https://github.com/Katsurama/Bilibili-thread-ripper-mac.git"
 HERE="$(cd "$(dirname "$0")" && pwd)"
 PATCHER="$HERE/btr_mac.py"
@@ -73,7 +72,7 @@ if [ -n "$FROM_APP" ]; then
     printf '#!/bin/bash\n'
     # 终端里是全新的环境，把客户端路径和用户指定的设置带过去。
     printf 'export BTR_APP=%q\n' "$APP"
-    for name in BTR_DATA BTR_REPO BTR_REF; do
+    for name in BTR_DATA BTR_REPO; do
       [ -n "${!name:-}" ] && printf 'export %s=%q\n' "$name" "${!name}"
     done
     printf 'echo "等待哔哩哔哩客户端退出…"\n'
@@ -178,20 +177,11 @@ make_backup() {
   ditto "$APP" "$BACKUP.tmp" && mv "$BACKUP.tmp" "$BACKUP"
 }
 
+# BTR 的代码随本仓库一起发布（desktop/dist），只装在 Mac 上测过的这一份。
 fetch_bundle() {
-  if [ -n "${BTR_REPO:-}" ]; then BUNDLE="$BTR_REPO/dist/desktop.js";
-  elif [ -f "$HERE/desktop/dist/desktop.js" ]; then BUNDLE="$HERE/desktop/dist/desktop.js"; else
-    local src="$DATA/src" ref="${BTR_REF:-main}"
-    if [ -d "$src/.git" ]; then
-      say "更新 BTR Desktop 源码（${ref}）"
-      git -C "$src" fetch --depth 1 origin "$ref" -q && git -C "$src" checkout -q --force FETCH_HEAD
-    else
-      say "下载 BTR Desktop 源码（${ref}）"
-      rm -rf "$src"; git clone -q --depth 1 --branch "$ref" "$REPO_URL" "$src"
-    fi
-    BUNDLE="$src/dist/desktop.js"
-  fi
-  [ -f "$BUNDLE" ] || die "找不到 $BUNDLE"
+  BUNDLE="${BTR_REPO:+$BTR_REPO/dist/desktop.js}"
+  BUNDLE="${BUNDLE:-$HERE/desktop/dist/desktop.js}"
+  [ -f "$BUNDLE" ] || die "找不到 ${BUNDLE}，请按 README 重新下载本仓库"
 }
 
 resign() {

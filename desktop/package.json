@@ -2,14 +2,10 @@
   "name": "btr-desktop",
   "private": true,
   "version": "2026.10.19.1-d1",
-  "description": "BTR desktop adapter for the official Bilibili Windows client",
+  "description": "BTR desktop adapter for the official Bilibili macOS client",
   "scripts": {
     "build": "node tools/build.cjs",
-    "release": "node tools/build.cjs && node tools/build-launcher.cjs && node tools/package-release.cjs",
     "test": "node --test test/*.test.cjs"
   },
-  "license": "MIT",
-  "dependencies": {
-    "playwright": "^1.64.1"
-  }
+  "license": "MIT"
 }

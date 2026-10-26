@@ -19,7 +19,6 @@ import sys
 BOOTSTRAP_FILE = "btr-desktop/bootstrap.cjs"
 PRELOAD_FILE = "btr-desktop/preload.cjs"
 MAINTAIN_FILE = "btr-desktop/maintain.cjs"
-BUNDLE_FILE = "btr-desktop/desktop.js"
 LIVE_FILE = "btr-desktop/live.js"
 INSTALLED_FILE = "btr-desktop/installed.json"
 PAYLOAD_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "payload")
@@ -126,7 +125,6 @@ def bootstrap_prefix(entry):
 
 
 def with_bootstrap(entry, text):
-    import re
     head = re.match(r'^﻿?(?:\s*(["\'])use strict\1[ \t]*;?[ \t]*(?:\r?\n)?)?', text).group(0)
     return head + bootstrap_prefix(entry) + text[len(head):]
 
@@ -147,19 +145,10 @@ def mac_version(install_root):
     return version if isinstance(version, str) and re.fullmatch(r"\d+\.\d+\.\d+\.\d+", version) else None
 
 
-def upstream_license(bundle_path):
-    """LICENSE of the BTR Desktop checkout the bundle comes from (dist/desktop.js -> LICENSE)."""
-    path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(bundle_path))), "LICENSE")
-    try:
-        with open(path, encoding="utf-8") as file:
-            return file.read().strip()
-    except OSError:
-        return None
-
-
-def web_license(bundle_path):
-    """LICENSE of the browser version, whose live modules the live bundle carries (desktop/LICENSE-Bilibili-thread-ripper)."""
-    path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(bundle_path))), "LICENSE-Bilibili-thread-ripper")
+def read_license(bundle_path, name):
+    """A LICENSE file of the BTR Desktop checkout the bundle comes from (dist/desktop.js -> <name>):
+    LICENSE for the desktop version, LICENSE-Bilibili-thread-ripper for the browser version's live modules."""
+    path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(bundle_path))), name)
     try:
         with open(path, encoding="utf-8") as file:
             return file.read().strip()
@@ -188,21 +177,22 @@ def patch(original_path, bundle_path, output_path, install_root):
     preload = payload("preload.cjs")
     if preload.count("__BTR_BUNDLE__") != 1 or preload.count("__BTR_MAC_INFO__") != 1:
         raise ValueError("preload.cjs 的注入位置不对")
-    mac_info = {"macVersion": mac_version(install_root), "btrVersion": bundle_version(bundle), "license": upstream_license(bundle_path), "liveLicense": web_license(bundle_path)}
+    mac_info = {"macVersion": mac_version(install_root), "btrVersion": bundle_version(bundle), "license": read_license(bundle_path, "LICENSE"), "liveLicense": read_license(bundle_path, "LICENSE-Bilibili-thread-ripper")}
     preload = preload.replace("__BTR_MAC_INFO__", json.dumps(mac_info, ensure_ascii=False))
     archive.set(BOOTSTRAP_FILE, payload("bootstrap.cjs"))
     archive.set(MAINTAIN_FILE, payload("maintain.cjs"))
-    archive.set(PRELOAD_FILE, preload.replace("__BTR_BUNDLE__", json.dumps(bundle.decode("utf-8"))))
-    archive.set(BUNDLE_FILE, bundle)
-    # The live bundle is built next to desktop.js in this repo; the upstream fallback has none,
-    # and the client then simply gets no live acceleration.
+    # The bundle travels inside the preload as a JSON string; the preload is the only reader.
+    embedded = json.dumps(bundle.decode("utf-8"))
+    archive.set(PRELOAD_FILE, preload.replace("__BTR_BUNDLE__", embedded))
+    # The live bundle is built next to desktop.js in this repo; a BTR_REPO checkout of the
+    # Windows repo has none, and the client then simply gets no live acceleration.
     live_path = os.path.join(os.path.dirname(os.path.abspath(bundle_path)), "live.js")
     if os.path.isfile(live_path):
         archive.set(LIVE_FILE, open(live_path, "rb").read())
     archive.set(INSTALLED_FILE, json.dumps({"schema": 1, "platform": "darwin", "version": bundle_version(bundle), "macVersion": mac_version(install_root), "clientVersion": info["clientVersion"], "originalSha256": sha(original), "payloadSha256": sha(bundle), "installRoot": os.path.abspath(install_root)}, ensure_ascii=False))
     patched = archive.pack()
     verify = Asar(patched)
-    if sha(verify.read(BUNDLE_FILE)) != sha(bundle) or BOOTSTRAP_FILE not in verify.text(info["entry"]):
+    if embedded not in verify.text(PRELOAD_FILE) or BOOTSTRAP_FILE not in verify.text(info["entry"]):
         raise ValueError("补丁自检失败")
     for name in archive.header.get("files", {}):
         if verify.entry(name) is None:
