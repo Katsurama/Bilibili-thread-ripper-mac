@@ -96,6 +96,7 @@
       // 剧集加速: episode pages (/bangumi/play/ep… and ss…: anime, films, documentaries, …),
       // sped up in the compatibility mode only.
       episodeEnabled: source.episodeEnabled !== false,
+      blockInternational: source.blockInternational === true,
       // "full" replaces Bilibili's playback core; "compat" leaves it in charge and only
       // downloads its media requests.
       takeover: source.takeover === "compat" ? "compat" : "full",
@@ -111,6 +112,7 @@
       // right); null when it was never moved.
       floatingButtonLeft: source.floatingButtonLeft != null && Number(source.floatingButtonLeft) >= 0 && Number(source.floatingButtonLeft) <= 1 ? Number(source.floatingButtonLeft) : null,
       floatingButtonTop: source.floatingButtonTop != null && Number(source.floatingButtonTop) >= 0 && Number(source.floatingButtonTop) <= 1 ? Number(source.floatingButtonTop) : null,
+      guideDone: source.guideDone === true,
       debugNotices: source.debugNotices === true,
       errorNotices: source.errorNotices === true,
       debugCategories: Object.fromEntries(["takeover", "playback", "download", "buffer", "settings", "other"].map(key => [key, source.debugCategories?.[key] !== false])),
@@ -123,7 +125,8 @@
       stallTimeoutMs: 4000,
       attemptTimeoutMs: 15000,
       hedgeDelayMs: 900,
-      bufferAheadSeconds: 45
+      bufferAheadSeconds: [30, 45, 90, 180].includes(Number(source.bufferAheadSeconds)) ? Number(source.bufferAheadSeconds) : 45,
+      secondaryBuffer: source.secondaryBuffer === true
     };
   }
 

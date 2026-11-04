@@ -1,4 +1,4 @@
-globalThis.__BTR_DESKTOP_RELEASE__={"version":"2026.10.19.1-d1","adapterRevision":1};
+globalThis.__BTR_DESKTOP_RELEASE__={"version":"2026.10.30.1-d2","adapterRevision":2};
 
 /* shared/range-core.js */
 (function installRangeCore(root) {
@@ -99,6 +99,7 @@ globalThis.__BTR_DESKTOP_RELEASE__={"version":"2026.10.19.1-d1","adapterRevision
       // 剧集加速: episode pages (/bangumi/play/ep… and ss…: anime, films, documentaries, …),
       // sped up in the compatibility mode only.
       episodeEnabled: source.episodeEnabled !== false,
+      blockInternational: source.blockInternational === true,
       // "full" replaces Bilibili's playback core; "compat" leaves it in charge and only
       // downloads its media requests.
       takeover: source.takeover === "compat" ? "compat" : "full",
@@ -114,6 +115,7 @@ globalThis.__BTR_DESKTOP_RELEASE__={"version":"2026.10.19.1-d1","adapterRevision
       // right); null when it was never moved.
       floatingButtonLeft: source.floatingButtonLeft != null && Number(source.floatingButtonLeft) >= 0 && Number(source.floatingButtonLeft) <= 1 ? Number(source.floatingButtonLeft) : null,
       floatingButtonTop: source.floatingButtonTop != null && Number(source.floatingButtonTop) >= 0 && Number(source.floatingButtonTop) <= 1 ? Number(source.floatingButtonTop) : null,
+      guideDone: source.guideDone === true,
       debugNotices: source.debugNotices === true,
       errorNotices: source.errorNotices === true,
       debugCategories: Object.fromEntries(["takeover", "playback", "download", "buffer", "settings", "other"].map(key => [key, source.debugCategories?.[key] !== false])),
@@ -126,7 +128,8 @@ globalThis.__BTR_DESKTOP_RELEASE__={"version":"2026.10.19.1-d1","adapterRevision
       stallTimeoutMs: 4000,
       attemptTimeoutMs: 15000,
       hedgeDelayMs: 900,
-      bufferAheadSeconds: 45
+      bufferAheadSeconds: [30, 45, 90, 180].includes(Number(source.bufferAheadSeconds)) ? Number(source.bufferAheadSeconds) : 45,
+      secondaryBuffer: source.secondaryBuffer === true
     };
   }
 
@@ -554,6 +557,7 @@ globalThis.__BTR_DESKTOP_RELEASE__={"version":"2026.10.19.1-d1","adapterRevision
 
   const PIECE_ROUNDS = 3;
   const PIECE_RETRY_WINDOW_MS = 25000;
+  const roundPause = round => Math.min(2000, 500 * (2 ** (round - 1)));
   // Below this a resumed request saves less than its own round trip costs.
   const RESUME_MIN_BYTES = 32 * 1024;
   // Hedging a piece with a playback deadline (see hedgeDue): a first copy projected to finish
@@ -1277,7 +1281,7 @@ globalThis.__BTR_DESKTOP_RELEASE__={"version":"2026.10.19.1-d1","adapterRevision
       for (let round = 0; round < PIECE_ROUNDS; round += 1) {
         if (round) {
           if (performance.now() - startedAt > PIECE_RETRY_WINDOW_MS) break;
-          await pause(Math.min(2000, 500 * (2 ** (round - 1))), signal);
+          await pause(roundPause(round), signal);
         }
         const candidates = pieceCandidates(piece, resolver, preferredUrls, round);
         const limit = Math.min(8, candidates.length);
@@ -1532,6 +1536,27 @@ globalThis.__BTR_DESKTOP_RELEASE__={"version":"2026.10.19.1-d1","adapterRevision
       return primary ? [primary, ...urls.filter((url) => url !== primary)] : urls;
     }
 
+    function orderedDelivery(pieces, onOrderedChunk) {
+      const ordered = new Array(pieces.length);
+      let next = 0;
+      let operation = Promise.resolve();
+      return {
+        add(index, result) {
+          ordered[index] = result;
+          operation = operation.then(async () => {
+            while (ordered[next]) {
+              const item = ordered[next];
+              ordered[next] = null;
+              await onOrderedChunk(item.bytes, pieces[next], item.total);
+              next += 1;
+            }
+          });
+          return operation;
+        },
+        done: () => operation
+      };
+    }
+
     async function downloadStartupRange(range, resolver, options) {
       semaphore.setLimit(config().concurrency);
       const piece = { index: 0, start: range.start, end: range.end, length: range.length };
@@ -1542,7 +1567,7 @@ globalThis.__BTR_DESKTOP_RELEASE__={"version":"2026.10.19.1-d1","adapterRevision
       for (let round = 0; round < PIECE_ROUNDS; round += 1) {
         if (round) {
           if (performance.now() - startedAt > PIECE_RETRY_WINDOW_MS) break;
-          await pause(Math.min(2000, 500 * (2 ** (round - 1))), options.signal);
+          await pause(roundPause(round), options.signal);
         }
         let candidates = (typeof resolver.startupCandidates === "function" ? resolver.startupCandidates() : resolver.urls())
           .filter((url, index, all) => all.indexOf(url) === index)
@@ -1612,20 +1637,7 @@ globalThis.__BTR_DESKTOP_RELEASE__={"version":"2026.10.19.1-d1","adapterRevision
         pieceBudget,
         adaptiveMinChunk(settings, range.end - head.end, pieceBudget, candidateUrls.length)
       ).map((piece, index) => ({ ...piece, index: index + 1 }));
-      const ordered = new Array(pieces.length);
-      let nextOrderedIndex = 0;
-      let flushOperation = Promise.resolve();
-      const flushOrdered = () => {
-        flushOperation = flushOperation.then(async () => {
-          while (ordered[nextOrderedIndex]) {
-            const item = ordered[nextOrderedIndex];
-            ordered[nextOrderedIndex] = null;
-            await options.onOrderedChunk(item.bytes, pieces[nextOrderedIndex], item.total);
-            nextOrderedIndex += 1;
-          }
-        });
-        return flushOperation;
-      };
+      const delivery = orderedDelivery(pieces, options.onOrderedChunk);
       // The probe measured at least its own winner, so the pieces spread over the nodes by
       // speed at once; the proven address stays each piece's first fallback. Only addresses
       // that have delivered carry the first segment: a node whose probe never finished would
@@ -1647,13 +1659,12 @@ globalThis.__BTR_DESKTOP_RELEASE__={"version":"2026.10.19.1-d1","adapterRevision
           options.deadline,
           earlyHedge
         );
-        ordered[orderedIndex] = result;
-        await flushOrdered();
+        await delivery.add(orderedIndex, result);
         return result;
       });
       options.onStartupScheduled?.();
       const results = await Promise.all(pendingPieces);
-      await flushOperation;
+      await delivery.done();
       const totals = [headResult, ...results].map((item) => item.total).filter(Number.isSafeInteger);
       if (totals.length && totals.some((value) => value !== totals[0])) throw new Error("不同 CDN 返回的文件总长度不一致");
       return {
@@ -1703,20 +1714,7 @@ globalThis.__BTR_DESKTOP_RELEASE__={"version":"2026.10.19.1-d1","adapterRevision
       const primaries = parallel ? assignPrimaries(preferredUrls, resolver, pieces.length) : [];
       const earlyHedge = createEarlyHedge(rescueReserve);
       const progressive = typeof options.onOrderedChunk === "function";
-      const ordered = new Array(pieces.length);
-      let nextOrderedIndex = 0;
-      let flushOperation = Promise.resolve();
-      const flushOrdered = () => {
-        flushOperation = flushOperation.then(async () => {
-          while (ordered[nextOrderedIndex]) {
-            const item = ordered[nextOrderedIndex];
-            ordered[nextOrderedIndex] = null;
-            await options.onOrderedChunk(item.bytes, pieces[nextOrderedIndex], item.total);
-            nextOrderedIndex += 1;
-          }
-        });
-        return flushOperation;
-      };
+      const delivery = progressive ? orderedDelivery(pieces, options.onOrderedChunk) : null;
       const results = await Promise.all(pieces.map(async (piece) => {
         const result = await downloadPiece(
           piece,
@@ -1729,13 +1727,10 @@ globalThis.__BTR_DESKTOP_RELEASE__={"version":"2026.10.19.1-d1","adapterRevision
           deadline,
           earlyHedge
         );
-        if (progressive) {
-          ordered[piece.index] = result;
-          await flushOrdered();
-        }
+        if (progressive) await delivery.add(piece.index, result);
         return result;
       }));
-      if (progressive) await flushOperation;
+      if (progressive) await delivery.done();
       const totals = results.map((item) => item.total).filter(Number.isSafeInteger);
       if (totals.length && totals.some((value) => value !== totals[0])) throw new Error("不同 CDN 返回的文件总长度不一致");
       return {
@@ -2225,7 +2220,7 @@ globalThis.__BTR_DESKTOP_RELEASE__={"version":"2026.10.19.1-d1","adapterRevision
     // video servers and drops anything else.
     // 自动线程数 is on unless switched off, as in the browser version; concurrency is then only
     // the manual choice, used again when it is switched off.
-    return { enabled: s.enabled, liveEnabled: s.liveEnabled, autoConcurrency: value?.autoConcurrency !== false, concurrency: s.concurrency, mode: s.mode, customHosts: s.customHosts, debugNotices: s.debugNotices, errorNotices: s.errorNotices, debugCategories: s.debugCategories, autoCheckUpdates: value?.autoCheckUpdates !== false, revision: REVISION };
+    return { enabled: s.enabled, liveEnabled: s.liveEnabled, autoConcurrency: value?.autoConcurrency !== false, concurrency: s.concurrency, mode: s.mode, customHosts: s.customHosts, debugNotices: s.debugNotices, errorNotices: s.errorNotices, debugCategories: s.debugCategories, theme: s.theme, floatingButton: s.floatingButton, floatingButtonLeft: s.floatingButtonLeft, floatingButtonTop: s.floatingButtonTop, guideDone: s.guideDone, autoCheckUpdates: value?.autoCheckUpdates !== false, revision: REVISION };
   };
   let current;
   // macOS: the main process injects the live player code only while 直播加速（实验性） is on, so
@@ -2240,8 +2235,8 @@ globalThis.__BTR_DESKTOP_RELEASE__={"version":"2026.10.19.1-d1","adapterRevision
   const emit = () => listeners.forEach(fn => { try { fn({ ...current, customHosts: current.customHosts.slice(), debugCategories: { ...current.debugCategories } }); } catch (error) { console.error("BTR settings listener", error); } });
   const channel = typeof BroadcastChannel === "function" ? new BroadcastChannel("BTR_Desktop.settings.v1") : null;
   const api = {
-    version: root.__BTR_DESKTOP_RELEASE__?.version || "2026.10.19.1-d1",
-    adapterRevision: root.__BTR_DESKTOP_RELEASE__?.adapterRevision || 1,
+    version: root.__BTR_DESKTOP_RELEASE__?.version || "2026.10.30.1-d2",
+    adapterRevision: root.__BTR_DESKTOP_RELEASE__?.adapterRevision || 2,
     categories,
     getSettings: () => ({ ...current, customHosts: current.customHosts.slice(), debugCategories: { ...current.debugCategories } }),
     setSettings(patch) {
@@ -2250,6 +2245,13 @@ globalThis.__BTR_DESKTOP_RELEASE__={"version":"2026.10.19.1-d1","adapterRevision
       const liveChanged = next.liveEnabled !== current.liveEnabled;
       current = next; emit(); channel?.postMessage(current);
       if (liveChanged) tellLive();
+      return api.getSettings();
+    },
+    resetSettings() {
+      const next = normalize({});
+      localStorage.setItem(KEY, JSON.stringify(next)); // Failure must not pretend to save.
+      current = next; emit(); channel?.postMessage(current);
+      tellLive();
       return api.getSettings();
     },
     onSettings(fn) { listeners.add(fn); fn(api.getSettings()); return () => listeners.delete(fn); },

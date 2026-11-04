@@ -27,6 +27,15 @@ test("new defaults: mainland CDN, 8 threads, error notices off, live off, episod
   for(const theme of ["invalid",null,{},1]) assert.equal(core.normalizeSettings({theme}).theme,"auto");
   assert.equal(defaults.liveEnabled,false);assert.equal(core.normalizeSettings({liveEnabled:true}).liveEnabled,true);
   assert.equal(defaults.episodeEnabled,true);assert.equal(core.normalizeSettings({episodeEnabled:false}).episodeEnabled,false);
+  assert.equal(defaults.blockInternational,false);
+  assert.equal(core.normalizeSettings({blockInternational:true}).blockInternational,true);
+  assert.equal(defaults.guideDone,false);
+  assert.equal(core.normalizeSettings({guideDone:true}).guideDone,true);
+  assert.equal(defaults.bufferAheadSeconds,45);
+  for(const seconds of [30,45,90,180]) assert.equal(core.normalizeSettings({bufferAheadSeconds:seconds}).bufferAheadSeconds,seconds);
+  assert.equal(core.normalizeSettings({bufferAheadSeconds:60}).bufferAheadSeconds,45);
+  assert.equal(defaults.secondaryBuffer,false);
+  assert.equal(core.normalizeSettings({secondaryBuffer:true}).secondaryBuffer,true);
 });
 
 test("a node is banned after two failures that delivered 0 bytes, and only for the current video",()=>{

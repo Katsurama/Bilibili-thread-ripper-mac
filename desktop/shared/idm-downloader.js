@@ -6,6 +6,7 @@
 
   const PIECE_ROUNDS = 3;
   const PIECE_RETRY_WINDOW_MS = 25000;
+  const roundPause = round => Math.min(2000, 500 * (2 ** (round - 1)));
   // Below this a resumed request saves less than its own round trip costs.
   const RESUME_MIN_BYTES = 32 * 1024;
   // Hedging a piece with a playback deadline (see hedgeDue): a first copy projected to finish
@@ -729,7 +730,7 @@
       for (let round = 0; round < PIECE_ROUNDS; round += 1) {
         if (round) {
           if (performance.now() - startedAt > PIECE_RETRY_WINDOW_MS) break;
-          await pause(Math.min(2000, 500 * (2 ** (round - 1))), signal);
+          await pause(roundPause(round), signal);
         }
         const candidates = pieceCandidates(piece, resolver, preferredUrls, round);
         const limit = Math.min(8, candidates.length);
@@ -984,6 +985,27 @@
       return primary ? [primary, ...urls.filter((url) => url !== primary)] : urls;
     }
 
+    function orderedDelivery(pieces, onOrderedChunk) {
+      const ordered = new Array(pieces.length);
+      let next = 0;
+      let operation = Promise.resolve();
+      return {
+        add(index, result) {
+          ordered[index] = result;
+          operation = operation.then(async () => {
+            while (ordered[next]) {
+              const item = ordered[next];
+              ordered[next] = null;
+              await onOrderedChunk(item.bytes, pieces[next], item.total);
+              next += 1;
+            }
+          });
+          return operation;
+        },
+        done: () => operation
+      };
+    }
+
     async function downloadStartupRange(range, resolver, options) {
       semaphore.setLimit(config().concurrency);
       const piece = { index: 0, start: range.start, end: range.end, length: range.length };
@@ -994,7 +1016,7 @@
       for (let round = 0; round < PIECE_ROUNDS; round += 1) {
         if (round) {
           if (performance.now() - startedAt > PIECE_RETRY_WINDOW_MS) break;
-          await pause(Math.min(2000, 500 * (2 ** (round - 1))), options.signal);
+          await pause(roundPause(round), options.signal);
         }
         let candidates = (typeof resolver.startupCandidates === "function" ? resolver.startupCandidates() : resolver.urls())
           .filter((url, index, all) => all.indexOf(url) === index)
@@ -1064,20 +1086,7 @@
         pieceBudget,
         adaptiveMinChunk(settings, range.end - head.end, pieceBudget, candidateUrls.length)
       ).map((piece, index) => ({ ...piece, index: index + 1 }));
-      const ordered = new Array(pieces.length);
-      let nextOrderedIndex = 0;
-      let flushOperation = Promise.resolve();
-      const flushOrdered = () => {
-        flushOperation = flushOperation.then(async () => {
-          while (ordered[nextOrderedIndex]) {
-            const item = ordered[nextOrderedIndex];
-            ordered[nextOrderedIndex] = null;
-            await options.onOrderedChunk(item.bytes, pieces[nextOrderedIndex], item.total);
-            nextOrderedIndex += 1;
-          }
-        });
-        return flushOperation;
-      };
+      const delivery = orderedDelivery(pieces, options.onOrderedChunk);
       // The probe measured at least its own winner, so the pieces spread over the nodes by
       // speed at once; the proven address stays each piece's first fallback. Only addresses
       // that have delivered carry the first segment: a node whose probe never finished would
@@ -1099,13 +1108,12 @@
           options.deadline,
           earlyHedge
         );
-        ordered[orderedIndex] = result;
-        await flushOrdered();
+        await delivery.add(orderedIndex, result);
         return result;
       });
       options.onStartupScheduled?.();
       const results = await Promise.all(pendingPieces);
-      await flushOperation;
+      await delivery.done();
       const totals = [headResult, ...results].map((item) => item.total).filter(Number.isSafeInteger);
       if (totals.length && totals.some((value) => value !== totals[0])) throw new Error("不同 CDN 返回的文件总长度不一致");
       return {
@@ -1155,20 +1163,7 @@
       const primaries = parallel ? assignPrimaries(preferredUrls, resolver, pieces.length) : [];
       const earlyHedge = createEarlyHedge(rescueReserve);
       const progressive = typeof options.onOrderedChunk === "function";
-      const ordered = new Array(pieces.length);
-      let nextOrderedIndex = 0;
-      let flushOperation = Promise.resolve();
-      const flushOrdered = () => {
-        flushOperation = flushOperation.then(async () => {
-          while (ordered[nextOrderedIndex]) {
-            const item = ordered[nextOrderedIndex];
-            ordered[nextOrderedIndex] = null;
-            await options.onOrderedChunk(item.bytes, pieces[nextOrderedIndex], item.total);
-            nextOrderedIndex += 1;
-          }
-        });
-        return flushOperation;
-      };
+      const delivery = progressive ? orderedDelivery(pieces, options.onOrderedChunk) : null;
       const results = await Promise.all(pieces.map(async (piece) => {
         const result = await downloadPiece(
           piece,
@@ -1181,13 +1176,10 @@
           deadline,
           earlyHedge
         );
-        if (progressive) {
-          ordered[piece.index] = result;
-          await flushOrdered();
-        }
+        if (progressive) await delivery.add(piece.index, result);
         return result;
       }));
-      if (progressive) await flushOperation;
+      if (progressive) await delivery.done();
       const totals = results.map((item) => item.total).filter(Number.isSafeInteger);
       if (totals.length && totals.some((value) => value !== totals[0])) throw new Error("不同 CDN 返回的文件总长度不一致");
       return {

@@ -8,7 +8,7 @@
 
 把线程撕裂者带到官方 macOS 客户端里，原本的播放器、字幕、弹幕和快捷键都保留
 
-已在 macOS 27.2（Apple M4）、官方客户端 **1.19.0**、BTR Desktop **2026.10.19.1-d1** 实测
+已在 macOS 27.2（Apple M4）、官方客户端 **1.19.0**、BTR Desktop **2026.10.30.1-d2** 实测
 
 [![平台](https://img.shields.io/badge/%E5%B9%B3%E5%8F%B0-macOS-555555?style=flat-square&logo=apple)](#-安装) [![原项目](https://img.shields.io/badge/%E5%8E%9F%E9%A1%B9%E7%9B%AE-BTR%20Desktop-0078d4?style=flat-square)](https://github.com/MrTangLuyao/Bilibili-thread-ripper-desktop) [![网页版](https://img.shields.io/badge/%E7%BD%91%E9%A1%B5%E7%89%88-%E6%B2%B9%E7%8C%B4%E8%84%9A%E6%9C%AC-fb7299?style=flat-square)](https://github.com/MrTangLuyao/Bilibili-thread-ripper) [![许可证](https://img.shields.io/github/license/Katsurama/Bilibili-thread-ripper-mac?label=%E8%AE%B8%E5%8F%AF%E8%AF%81&style=flat-square&color=3b82f6)](LICENSE)
 
@@ -35,7 +35,7 @@
 
 - **原生客户端不变**：播放器、字幕、弹幕和快捷键都保留，BTR 只接管视频下载
 - **直播加速（实验性）**：移植自网页版的直播模块，直播分片从多个节点竞速下载，并提前预取下一片，减少卡顿和转圈。默认关闭，在设置里打开
-- **内置原项目代码**：[desktop/](desktop) 里是 BTR Desktop 2026.10.19.1-d1 的源码（MIT），直播模块来自网页版；本仓库只加了把它们装进 macOS 客户端的注入代码（[payload/](payload)）和直播间里的开关
+- **内置原项目代码**：[desktop/](desktop) 里是 BTR Desktop **2026.10.30.1-d2** 的 macOS 适配源码（MIT），共享下载逻辑与网页版保持同步；直播模块保留本仓库的 macOS 注入和开关改动
 - **客户端里更新和卸载**：设置页里检查更新、一键卸载，确认后在“终端”里完成，结束后自动重新打开客户端
 - **随时一键还原**：安装前完整备份官方客户端，卸载时原样还原，不动账号和数据
 - **只用系统自带工具**：`python3`、`git` 和 `codesign`，不需要安装 Node.js

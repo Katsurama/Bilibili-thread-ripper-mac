@@ -1,23 +1,23 @@
 {
-  "version": "2026.10.19.1-d1",
-  "adapterRevision": 1,
-  "sha256": "13911e3e2bcea7fd50d306cafac8dd46425fa694ac7c0dbb41d25a0d87675388",
+  "version": "2026.10.30.1-d2",
+  "adapterRevision": 2,
+  "sha256": "1878cf9c61bc1e9d3d7a98bfeb9aeddba0c918ee71e69761e04e3e5dbed2bee6",
   "files": {
-    "shared/range-core.js": "0ee0f7645e7649ba3b1c859bbaeb3a2e49c2bce0d36d773bbd1c8a3df82b8d7e",
+    "shared/range-core.js": "6764d7a604d5152f06a18407711fd85e31636c1019ef0c885c41a3593b1c4af2",
     "shared/cdn-resolver.js": "83db8e8969a804a2ff2f7012967eb95c590ed2032f59c7c483b538b91c4124a3",
-    "shared/idm-downloader.js": "c772f5b57bb8fe860475548c8286ea29f7913fd8ce056756dfca84fe1f5405d3",
+    "shared/idm-downloader.js": "90ac02d826ea63135235303eab4cd0846a7c9bfdd67a3291baa4106542092965",
     "shared/runtime-notices.js": "54763461c5b6b167cf879612a2e1d0c6a71cebbde02e2702669a1fc7a2be7564",
     "shared/notification-view.js": "13bfd21f1d6768194d49e7103de38afbd4be6cb969999020424ad9799b892b37",
-    "src/settings.js": "3bb825432697093f61d4e130c9cedfea9b10dcdf1aadc701dfba17551e93c3ba",
+    "src/settings.js": "c016ba15031b42100e5d3b5687735a23d3fac95dff700a2bb6c5cc6cacdfe2d5",
     "src/transport.js": "af22ff6a3f8f70dbded5346b6c3d0d9ac34f70f337daa0b18005c8b1ef594d84",
     "src/client.js": "65f56318eba1c1bf92f5b276b7731e3567877392e8454349c89a7005673b9818",
     "src/updates.js": "4be36c1110458d8edd04d2429b614f6f0190c23ed28c70586ac0c47edad541b2",
     "src/settings-view.js": "60d214b534c0b99afb1cfca54692ea27c49212f2b61acb3284fd297ff5e9376b",
     "src/player-settings.js": "21d151da22f7b2e4aa6dc33bd897f2490b237e4fbe48ba5cfa4fc1cf0891c348"
   },
-  "liveSha256": "5087ca1dc71bc512231f63900bac7414eae5784f72f59110e934a7b2e925a0fa",
+  "liveSha256": "a5e00badfce40c33e980f151d46e2a4e7e103de4cb4f32726725cfe0b8f1ed3d",
   "liveFiles": {
-    "shared/range-core.js": "0ee0f7645e7649ba3b1c859bbaeb3a2e49c2bce0d36d773bbd1c8a3df82b8d7e",
+    "shared/range-core.js": "6764d7a604d5152f06a18407711fd85e31636c1019ef0c885c41a3593b1c4af2",
     "shared/live-core.js": "314ee29a7be9241f71de9488b8944973c6ab539db367614fa2d279814634203e",
     "shared/live-hook.js": "168a72f2d67c4155ac998973dfc1bfc83116e170142f2267dc97b2970ec5040e",
     "src/live-ui.js": "00d94e001962aa5c8f3bd2cd1de922da70b0ed016937cfadc21a359e803a3cf4"
