@@ -17,6 +17,7 @@
 <a href="https://www.bilibili.com/video/BV1chxT6xEr7"><img src="docs/images/video-cover.jpg" alt="在哔哩哔哩观看 BTR Desktop for macOS 介绍视频" width="72%"></a>
 [▶ 在 B 站看介绍视频](https://www.bilibili.com/video/BV1chxT6xEr7)（2 分 50 秒）
 
+
 <img src="docs/images/system-settings.webp" alt="macOS 客户端设置页里的 BTR Desktop for macOS" width="49%"> <img src="docs/images/player-settings.webp" alt="macOS 客户端播放器设置里的线程撕裂者 CDN 和并发线程" width="49%">
 
 </div>
