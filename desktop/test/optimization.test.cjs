@@ -77,6 +77,34 @@ test("pieces are spread over nodes by measured speed",{timeout:30000},async()=>{
   assert.ok((counts.get(SLOW)||0)>=1,"the slow node keeps a floor share");
 });
 
+test("progressive delivery keeps out-of-order pieces contiguous",{timeout:30000},async()=>{
+  const {idm}=load();
+  const HOST="upos-sz-mirrorali.bilivideo.com";
+  const only=[mediaUrl(HOST)];
+  const resolver={urls:()=>only,ordered:()=>only,rescueCandidates:()=>only,rangeCandidates:()=>only,allows:()=>true,success(){},failure(){},speed:()=>0};
+  const nativeFetch=async(_url,init)=>{
+    const {start,end}=rangeOf(init);
+    await new Promise(resolve=>setTimeout(resolve, (3 - (start / (64 * 1024)) % 4) * 3));
+    return ok(start,end,67108864);
+  };
+  const downloader=idm.createDownloader({getSettings:()=>({concurrency:4}),nativeFetch});
+  const range={start:0,end:8*64*1024-1,length:8*64*1024};
+  const chunks=[];
+  const result=await downloader.downloadRange(range,resolver,{
+    parallel:true,kind:"video",onOrderedChunk:(bytes,piece)=>{
+      chunks.push({bytes,piece});
+    }
+  });
+  assert.equal(result.bytes,null);
+  let cursor=range.start;
+  for(const {bytes,piece} of chunks){
+    assert.equal(piece.start,cursor,"progressive pieces remain contiguous");
+    assert.ok(bytes.every((value,index)=>value===(cursor+index)%251),"progressive bytes stay exact");
+    cursor+=bytes.byteLength;
+  }
+  assert.equal(cursor,range.end+1);
+});
+
 test("sub-chunks grow with the measured connection speed, but a range keeps at least four pieces",{timeout:30000},async()=>{
   const {idm}=load();
   const HOST="upos-sz-mirrorali.bilivideo.com";
