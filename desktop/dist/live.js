@@ -24,7 +24,7 @@ SOFTWARE.
 */
 (function () {
 if (globalThis.__BTR_LIVE_BUNDLE__) return;
-Object.defineProperty(globalThis, "__BTR_LIVE_BUNDLE__", { value: "2026.10.19.1-d1" });
+Object.defineProperty(globalThis, "__BTR_LIVE_BUNDLE__", { value: "2026.10.30.1-d2" });
 
 /* shared/range-core.js */
 (function installRangeCore(root) {
@@ -125,6 +125,7 @@ Object.defineProperty(globalThis, "__BTR_LIVE_BUNDLE__", { value: "2026.10.19.1-
       // 剧集加速: episode pages (/bangumi/play/ep… and ss…: anime, films, documentaries, …),
       // sped up in the compatibility mode only.
       episodeEnabled: source.episodeEnabled !== false,
+      blockInternational: source.blockInternational === true,
       // "full" replaces Bilibili's playback core; "compat" leaves it in charge and only
       // downloads its media requests.
       takeover: source.takeover === "compat" ? "compat" : "full",
@@ -140,6 +141,7 @@ Object.defineProperty(globalThis, "__BTR_LIVE_BUNDLE__", { value: "2026.10.19.1-
       // right); null when it was never moved.
       floatingButtonLeft: source.floatingButtonLeft != null && Number(source.floatingButtonLeft) >= 0 && Number(source.floatingButtonLeft) <= 1 ? Number(source.floatingButtonLeft) : null,
       floatingButtonTop: source.floatingButtonTop != null && Number(source.floatingButtonTop) >= 0 && Number(source.floatingButtonTop) <= 1 ? Number(source.floatingButtonTop) : null,
+      guideDone: source.guideDone === true,
       debugNotices: source.debugNotices === true,
       errorNotices: source.errorNotices === true,
       debugCategories: Object.fromEntries(["takeover", "playback", "download", "buffer", "settings", "other"].map(key => [key, source.debugCategories?.[key] !== false])),
@@ -152,7 +154,8 @@ Object.defineProperty(globalThis, "__BTR_LIVE_BUNDLE__", { value: "2026.10.19.1-
       stallTimeoutMs: 4000,
       attemptTimeoutMs: 15000,
       hedgeDelayMs: 900,
-      bufferAheadSeconds: 45
+      bufferAheadSeconds: [30, 45, 90, 180].includes(Number(source.bufferAheadSeconds)) ? Number(source.bufferAheadSeconds) : 45,
+      secondaryBuffer: source.secondaryBuffer === true
     };
   }
 
@@ -418,7 +421,7 @@ Object.defineProperty(globalThis, "__BTR_LIVE_BUNDLE__", { value: "2026.10.19.1-
 
   // ---- stats for the settings panel ----
   const stats = {
-    version: "2026.10.19.1-d1",
+    version: "2026.10.30.1-d2",
     architecture: "live-segment-ripper",
     mode: "live",
     playerState: "waiting",
@@ -882,7 +885,7 @@ Object.defineProperty(globalThis, "__BTR_LIVE_BUNDLE__", { value: "2026.10.19.1-
         hosts: context.pool.status()
       },
       getStats: () => ({ ...stats }),
-      version: "2026.10.19.1-d1"
+      version: "2026.10.30.1-d2"
     })
   });
   publish();

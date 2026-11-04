@@ -12,7 +12,7 @@
     // video servers and drops anything else.
     // 自动线程数 is on unless switched off, as in the browser version; concurrency is then only
     // the manual choice, used again when it is switched off.
-    return { enabled: s.enabled, liveEnabled: s.liveEnabled, autoConcurrency: value?.autoConcurrency !== false, concurrency: s.concurrency, mode: s.mode, customHosts: s.customHosts, debugNotices: s.debugNotices, errorNotices: s.errorNotices, debugCategories: s.debugCategories, autoCheckUpdates: value?.autoCheckUpdates !== false, revision: REVISION };
+    return { enabled: s.enabled, liveEnabled: s.liveEnabled, autoConcurrency: value?.autoConcurrency !== false, concurrency: s.concurrency, mode: s.mode, customHosts: s.customHosts, debugNotices: s.debugNotices, errorNotices: s.errorNotices, debugCategories: s.debugCategories, theme: s.theme, floatingButton: s.floatingButton, floatingButtonLeft: s.floatingButtonLeft, floatingButtonTop: s.floatingButtonTop, guideDone: s.guideDone, autoCheckUpdates: value?.autoCheckUpdates !== false, revision: REVISION };
   };
   let current;
   // macOS: the main process injects the live player code only while 直播加速（实验性） is on, so
@@ -27,8 +27,8 @@
   const emit = () => listeners.forEach(fn => { try { fn({ ...current, customHosts: current.customHosts.slice(), debugCategories: { ...current.debugCategories } }); } catch (error) { console.error("BTR settings listener", error); } });
   const channel = typeof BroadcastChannel === "function" ? new BroadcastChannel("BTR_Desktop.settings.v1") : null;
   const api = {
-    version: root.__BTR_DESKTOP_RELEASE__?.version || "2026.10.19.1-d1",
-    adapterRevision: root.__BTR_DESKTOP_RELEASE__?.adapterRevision || 1,
+    version: root.__BTR_DESKTOP_RELEASE__?.version || "2026.10.30.1-d2",
+    adapterRevision: root.__BTR_DESKTOP_RELEASE__?.adapterRevision || 2,
     categories,
     getSettings: () => ({ ...current, customHosts: current.customHosts.slice(), debugCategories: { ...current.debugCategories } }),
     setSettings(patch) {
@@ -37,6 +37,13 @@
       const liveChanged = next.liveEnabled !== current.liveEnabled;
       current = next; emit(); channel?.postMessage(current);
       if (liveChanged) tellLive();
+      return api.getSettings();
+    },
+    resetSettings() {
+      const next = normalize({});
+      localStorage.setItem(KEY, JSON.stringify(next)); // Failure must not pretend to save.
+      current = next; emit(); channel?.postMessage(current);
+      tellLive();
       return api.getSettings();
     },
     onSettings(fn) { listeners.add(fn); fn(api.getSettings()); return () => listeners.delete(fn); },
