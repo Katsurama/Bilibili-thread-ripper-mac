@@ -12,6 +12,16 @@ test("client-launched maintenance leaves the single relaunch to Terminal", () =>
   assert.match(script, /notify "BTR 已卸载，正在重新打开官方客户端"\n\s+relaunch_after_action/);
 });
 
+test("the client version record uses the client's own algorithm: C locale + ctime.toString() md5", () => {
+  // A changed app-update.yml ctime makes the client treat itself as reinstalled (settings reset,
+  // hot update re-downloaded). install-mac.sh writes back the same value the client computes, so
+  // it must stay byte-for-byte the client's: the C locale (the timezone name follows LANG) and
+  // Date.ctime.toString() hashed with md5 as hex.
+  assert.match(script, /LC_ALL=C LANG=C ELECTRON_RUN_AS_NODE=1/);
+  assert.match(script, /require\("fs"\)\.statSync\(process\.argv\[1\]\)\.ctime\.toString\(\)/);
+  assert.match(script, /require\("crypto"\)\.createHash\("md5"\)\.update\(s\)\.digest\("hex"\)/);
+});
+
 // maintain.cjs against a fake Electron: the update check reads only this repository's mac-version.json.
 function updateCheck(macVersion, installedMac) {
   const os = require("node:os"), dir = fs.mkdtempSync(path.join(os.tmpdir(), "btr-maintain-"));

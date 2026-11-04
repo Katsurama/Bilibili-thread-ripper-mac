@@ -87,6 +87,9 @@
     const source = input && typeof input === "object" ? input : {};
     const allowed = [4, 8, 16, 32, 64, 128];
     const requested = Math.trunc(Number(source.concurrency));
+    // theme, floatingButton*, guideDone, episodeEnabled, blockInternational, bufferAheadSeconds
+    // and secondaryBuffer exist only for compatibility with the upstream browser settings; the
+    // macOS compat-mode downloader does not consume them (the client's own player manages buffering).
     return {
       enabled: source.enabled !== false,
       theme: ["light", "dark"].includes(source.theme) ? source.theme : "auto",
