@@ -44,7 +44,7 @@
 
 还在实验阶段，默认关闭。直播代码移植自[网页版](https://github.com/MrTangLuyao/Bilibili-thread-ripper)：直播分片同时从多个直播节点竞速下载，某个节点变慢就换，并提前把下一片下好。
 
-<p align="center"><img src="docs/images/live-acceleration.webp" alt="直播间清晰度菜单里的 BTR 直播加速开关和加速状态" width="70%"></p>
+<p align="center"><img src="docs/images/live-acceleration.gif" alt="直播间清晰度菜单里的 BTR 直播加速开关和加速状态" width="70%"></p>
 
 1. 在 **设置 → BTR Desktop for macOS** 打开 **直播加速（实验性）**
 2. 打开任意直播间，把鼠标移到画面右下角的清晰度（例如“1080P 原画”）上，菜单最上面一行就是 **BTR 直播加速** 开关，默认开着
