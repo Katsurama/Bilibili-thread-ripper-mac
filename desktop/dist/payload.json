@@ -1,10 +1,10 @@
 {
   "version": "2026.10.30.1-d2",
   "adapterRevision": 2,
-  "sha256": "8616342f6cfedffd5649b9536cb2a1f49f511b7a271f7fb7019ed0d23bfafb06",
+  "sha256": "b723908142bb23c5917dc41267948ae905e4d788344ab7ff8eabe5c629be19af",
   "files": {
     "shared/range-core.js": "2e1289577f61c82aa60215445ca28f9e9b45d89e63364c6293a2f75925cd7fec",
-    "shared/cdn-resolver.js": "83db8e8969a804a2ff2f7012967eb95c590ed2032f59c7c483b538b91c4124a3",
+    "shared/cdn-resolver.js": "bc08768b72b425ea999f5840bd7a0a57042785da6a86778c60097aacd62e50af",
     "shared/idm-downloader.js": "90ac02d826ea63135235303eab4cd0846a7c9bfdd67a3291baa4106542092965",
     "shared/runtime-notices.js": "54763461c5b6b167cf879612a2e1d0c6a71cebbde02e2702669a1fc7a2be7564",
     "shared/notification-view.js": "13bfd21f1d6768194d49e7103de38afbd4be6cb969999020424ad9799b892b37",

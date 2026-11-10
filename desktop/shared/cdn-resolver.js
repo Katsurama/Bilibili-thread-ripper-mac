@@ -23,11 +23,6 @@
     "cn-hk-eq-01-03.bilivideo.com"
   ]);
 
-  const GLOBAL_HOSTS = Object.freeze([
-    ...OVERSEAS_HOSTS,
-    ...MAINLAND_HOSTS
-  ]);
-
   function isAkamaiUrl(value) {
     try { return new URL(value).hostname.toLowerCase().endsWith(".akamaized.net"); }
     catch (_error) { return false; }
@@ -386,7 +381,6 @@
   }
 
   root.__BILI_CDN_RESOLVER_FACTORY__ = Object.freeze({
-    GLOBAL_HOSTS,
     MAINLAND_HOSTS,
     OVERSEAS_HOSTS,
     createBanList,

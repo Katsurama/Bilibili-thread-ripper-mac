@@ -6,12 +6,6 @@ const path = require("node:path");
 
 const script = fs.readFileSync(path.join(__dirname, "../../install-mac.sh"), "utf8");
 
-test("client-launched maintenance leaves the single relaunch to Terminal", () => {
-  assert.match(script, /relaunch_after_action\(\) \{ \[ -z "\$FROM_APP" \] && relaunch; \}/);
-  assert.equal((script.match(/relaunch_after_action/g) || []).length, 4);
-  assert.match(script, /notify "BTR 已卸载，正在重新打开官方客户端"\n\s+relaunch_after_action/);
-});
-
 test("the client version record uses the client's own algorithm: C locale + ctime.toString() md5", () => {
   // A changed app-update.yml ctime makes the client treat itself as reinstalled (settings reset,
   // hot update re-downloaded). install-mac.sh writes back the same value the client computes, so
@@ -57,18 +51,52 @@ test("a higher mac-version.json is offered, a lower one (a stale CDN copy) is no
   assert.equal((await updateCheck("2026.10.22.4", "2026.10.22.5")).result.state, "current");
 });
 
-test("update moves a copy cloned from the old GitHub address to the current one", () => {
-  const { execFileSync } = require("node:child_process"), os = require("node:os");
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "btr-remote-"));
-  const run = (...args) => execFileSync("git", ["-C", dir, ...args], { encoding: "utf8" }).trim();
-  run("init", "-q"); run("remote", "add", "origin", "https://github.com/someone-old/Bilibili-thread-ripper-mac.git");
-  // Only the remote fix of update(), without pulling or installing.
-  const body = script.match(/\n  if \[ -d "\$HERE\/\.git" \]; then\n[\s\S]*?\n  fi\n/)[0];
-  const self = script.match(/^SELF_URL=.*$/m)[0];
-  execFileSync("/bin/bash", ["-c", `say() { :; }; HERE=${JSON.stringify(dir)}; ${self}\n${body}`]);
-  assert.equal(run("remote", "get-url", "origin"), "https://github.com/Katsurama/Bilibili-thread-ripper-mac.git");
-  // Updating downloads from the public address whatever origin says, so no SSH key is asked for.
-  assert.match(script, /git -C "\$HERE" pull --ff-only -q "\$SELF_URL" main/);
+test("updating downloads from the public address, so no SSH key is asked for, and a failed download is reported", () => {
+  assert.match(script, /git -C "\$HERE" pull --ff-only -q "\$SELF_URL" main; then exec .* --pulled; fi\n\s+exec .* --pull-failed/);
+  assert.match(script, /if \[ -n "\$PULL_FAILED" \]; then\n\s+say "注意：没能从 GitHub 拉到最新版本/);
+});
+
+// install-mac.sh uninstall against a made-up client: it replaces a whole application, so it is run for real.
+// macOS only: the script uses PlistBuddy, ditto and xattr.
+function fakeClient() {
+  const os = require("node:os"), { execFileSync } = require("node:child_process");
+  const repo = path.resolve(__dirname, "../.."), dir = fs.mkdtempSync(path.join(os.tmpdir(), "btr-uninstall-"));
+  const app = path.join(dir, "Applications/哔哩哔哩.app"), data = path.join(dir, "data"), backup = path.join(data, "backup/哔哩哔哩.app");
+  const body = Buffer.from('"use strict";\n'), pkg = Buffer.from(JSON.stringify({ name: "bilibili", version: "1.17.3", main: "index.js" }));
+  const header = Buffer.from(JSON.stringify({ files: { "package.json": { size: pkg.length, offset: "0" }, "index.js": { size: body.length, offset: String(pkg.length) } } }));
+  const padded = Math.ceil((header.length + 4) / 4) * 4, prefix = Buffer.alloc(12 + padded);
+  prefix.writeUInt32LE(4, 0); prefix.writeUInt32LE(padded + 4, 4); prefix.writeUInt32LE(padded, 8); prefix.writeUInt32LE(header.length, 12); header.copy(prefix, 16);
+  const official = Buffer.concat([prefix, pkg, body]);
+  for (const root of [app, backup]) {
+    fs.mkdirSync(path.join(root, "Contents/Resources"), { recursive: true }); fs.mkdirSync(path.join(root, "Contents/MacOS"));
+    fs.writeFileSync(path.join(root, "Contents/Info.plist"), '<?xml version="1.0" encoding="UTF-8"?>\n<plist version="1.0"><dict><key>CFBundleIdentifier</key><string>com.bilibili.bilibiliPC</string><key>CFBundleShortVersionString</key><string>1.17.3</string></dict></plist>\n');
+    fs.writeFileSync(path.join(root, "Contents/Resources/app.asar"), official);
+  }
+  fs.writeFileSync(path.join(data, ".btr-mac-data"), ""); // the script only deletes inside a folder it marked as its own
+  const asar = path.join(app, "Contents/Resources/app.asar");
+  execFileSync("python3", ["-I", path.join(repo, "btr_mac.py"), "patch", path.join(backup, "Contents/Resources/app.asar"), path.join(repo, "desktop/dist/desktop.js"), asar, repo]);
+  const env = { ...process.env, BTR_APP: app, BTR_DATA: data, BTR_CLIENT_RESOURCE: path.join(dir, "resource") };
+  const uninstall = () => execFileSync("/bin/bash", [path.join(repo, "install-mac.sh"), "uninstall"], { env, stdio: "pipe", encoding: "utf8" });
+  return { dir, app, asar, data, official, uninstall };
+}
+
+test("uninstall puts the backup back in place of the client and removes BTR's own files", { skip: process.platform !== "darwin" }, () => {
+  const client = fakeClient();
+  assert.notDeepEqual(fs.readFileSync(client.asar), client.official);
+  client.uninstall();
+  assert.deepEqual(fs.readFileSync(client.asar), client.official);
+  assert.deepEqual(fs.readdirSync(path.dirname(client.app)), ["哔哩哔哩.app"], "no restore copy or old client left beside it");
+  assert.ok(!fs.existsSync(client.data), "backup and data removed");
+  fs.rmSync(client.dir, { recursive: true });
+});
+
+test("uninstall changes nothing when it cannot tell whether the client has BTR", { skip: process.platform !== "darwin" }, () => {
+  const client = fakeClient();
+  fs.writeFileSync(client.asar, "not an asar");
+  assert.throws(client.uninstall, error => /读不出当前客户端的状态/.test(error.stderr));
+  assert.equal(fs.readFileSync(client.asar, "utf8"), "not an asar");
+  assert.ok(fs.existsSync(path.join(client.data, "backup")), "the backup is kept");
+  fs.rmSync(client.dir, { recursive: true });
 });
 
 // The important-update dialog: maintain.cjs with a fake Electron whose dialog answers 稍后.

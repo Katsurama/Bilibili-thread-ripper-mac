@@ -72,7 +72,7 @@
 2. 在“终端”里运行下面两行（第一次安装和以后手动更新都用它们）：
 
    ```bash
-   [ -d ~/btr-mac ] || git clone https://github.com/Katsurama/Bilibili-thread-ripper-mac.git ~/btr-mac
+   [ -d ~/btr-mac ] || git clone --depth 1 https://github.com/Katsurama/Bilibili-thread-ripper-mac.git ~/btr-mac
    bash ~/btr-mac/install-mac.sh
    ```
 
@@ -97,7 +97,7 @@ rm -rf ~/btr-mac
 ```
 
 ```bash
-git clone https://github.com/Katsurama/Bilibili-thread-ripper-mac.git ~/btr-mac
+git clone --depth 1 https://github.com/Katsurama/Bilibili-thread-ripper-mac.git ~/btr-mac
 ```
 
 ```bash

@@ -19,7 +19,7 @@ find_app() {
   done
   while IFS= read -r candidate; do
     case "$candidate" in
-      */.btr-restore.app) ;;
+      */.btr-restore.app|*/.btr-old.app) ;;
       /Applications/*.app|"$HOME"/Applications/*.app) printf '%s' "$candidate"; return ;;
     esac
   done < <(mdfind "kMDItemCFBundleIdentifier == 'com.bilibili.bilibiliPC'" 2>/dev/null)
@@ -37,25 +37,22 @@ LOG="$DATA/maintain.log"
 CLIENT_RESOURCE="${BTR_CLIENT_RESOURCE:-$HOME/Library/Application Support/bilibili/resource}"
 
 ACTION="${1:-install}"; [ $# -gt 0 ] && shift
-FROM_APP=""; PULLED=""
+FROM_APP=""; PULLED=""; PULL_FAILED=""
 while [ $# -gt 0 ]; do
   case "$1" in
     --from-app) FROM_APP="${2:-}"; shift 2 ;;
     --pulled) PULLED=1; shift ;;
+    --pull-failed) PULLED=1; PULL_FAILED=1; shift ;;
     *) printf '未知参数：%s\n' "$1" >&2; exit 2 ;;
   esac
 done
 
-notify() { [ -n "$FROM_APP" ] && osascript -e "display notification \"$1\" with title \"BTR Desktop for macOS\"" >/dev/null 2>&1 || true; }
 # 用 open 打开的应用会继承当前的环境变量。客户端算 .appInfo 时用的时区名称跟着 LANG 变（日语环境是
 # “日本標準時”），带着终端的 LANG 打开会和从 Dock 打开算出不同的值，被当成重新安装。所以去掉语言环境再打开。
 CLEAN_LOCALE="env -u LANG -u LC_ALL -u LC_CTYPE -u LC_MESSAGES -u LC_COLLATE -u LC_NUMERIC -u LC_TIME -u LC_MONETARY"
-relaunch() { [ -n "$FROM_APP" ] && [ -d "$APP" ] && $CLEAN_LOCALE open "$APP" >/dev/null 2>&1 || true; }
-relaunch_after_action() { [ -z "$FROM_APP" ] && relaunch; }
 say() { printf '\033[1;35m[BTR]\033[0m %s\n' "$*"; }
 die() {
   printf '\033[1;31m[BTR] %s\033[0m\n' "$*" >&2
-  if [ -n "$FROM_APP" ]; then notify "$1"; relaunch; fi
   exit 1
 }
 
@@ -197,34 +194,28 @@ resign() {
 
 install() {
   check_app; ensure_data_dir; check_writable; fetch_bundle; remember_appinfo; make_backup
-  local tmp; tmp="$(mktemp -d "$DATA/tmp.XXXXXX")"
+  # 不用 local：退出时的 trap 要读到它，打补丁失败也不留下一百多 MB 的临时文件。
+  tmp="$(mktemp -d "$DATA/tmp.XXXXXX")"; trap 'rm -rf "$tmp"' EXIT
   python3 -I "$PATCHER" patch "$BACKUP/Contents/Resources/app.asar" "$BUNDLE" "$tmp/app.asar" "$HERE"
   cp "$tmp/app.asar" "$ASAR.btr.tmp" && mv "$ASAR.btr.tmp" "$ASAR"
-  rm -rf "$tmp"
   resign
   sync_appinfo
   say "安装完成。打开客户端，在 设置 → BTR Desktop for macOS 里调整；还原请运行 install-mac.sh uninstall"
-  notify "BTR 已更新，正在重新打开客户端"
-  relaunch_after_action
+  # 拉取失败时装进去的还是本地这份旧代码，必须说清楚，不然客户端会一直提示有更新。
+  if [ -n "$PULL_FAILED" ]; then
+    say "注意：没能从 GitHub 拉到最新版本，这次装的是本地已有的版本，客户端可能还会提示有更新。"
+    say "检查网络后再运行一次；还不行就重新下载：mv ${HERE} ${HERE}.old && git clone --depth 1 ${SELF_URL} ${HERE}"
+  fi
 }
 
 # 先更新本仓库（安装脚本和注入代码），再用新脚本完成安装。安装和更新都这样，
 # 免得本地仓库是旧的时候装进去旧代码。
 update() {
-  # 本仓库换过 GitHub 用户名。旧地址靠 GitHub 的跳转才能用，旧用户名被别人注册后就会失效，
-  # 所以把还指向旧地址的副本改到现在的地址。拉取之后的新脚本也会再跑一次，保证改过来。
-  if [ -d "$HERE/.git" ]; then
-    case "$(git -C "$HERE" remote get-url origin 2>/dev/null || true)" in
-      "$SELF_URL"|"${SELF_URL%.git}") ;;
-      https://github.com/*/Bilibili-thread-ripper-mac|https://github.com/*/Bilibili-thread-ripper-mac.git)
-        git -C "$HERE" remote set-url origin "$SELF_URL" && say "已把本仓库的下载地址改为 ${SELF_URL}" ;;
-    esac
-  fi
   if [ -z "$PULLED" ] && [ -d "$HERE/.git" ]; then
     say "更新 macOS 安装脚本"
     # 公开仓库，直接用网址下载，不用账号和密钥：origin 被改成 SSH 地址时也不会去碰 SSH 密钥。
-    git -C "$HERE" pull --ff-only -q "$SELF_URL" main || say "注意：安装脚本更新失败，继续使用当前版本"
-    exec /bin/bash "$HERE/install-mac.sh" "$ACTION" --pulled
+    if git -C "$HERE" pull --ff-only -q "$SELF_URL" main; then exec /bin/bash "$HERE/install-mac.sh" "$ACTION" --pulled; fi
+    exec /bin/bash "$HERE/install-mac.sh" "$ACTION" --pull-failed
   fi
   install
 }
@@ -233,12 +224,13 @@ uninstall() {
   check_app
   ensure_data_dir
   # 当前客户端已经不含 BTR（比如重新装过官方客户端，可能比备份新）时不能用备份覆盖它，只清理 BTR 的文件。
-  if [ "$(asar_installed "$ASAR")" = "no" ]; then
+  local state; state="$(asar_installed "$ASAR" 2>/dev/null || true)"
+  # 读不出来不等于“装了 BTR”：当前可能是用户新装的官方客户端，不能拿旧备份覆盖它。
+  case "$state" in yes|no) ;; *) die "读不出当前客户端的状态（需要 python3），没有做任何修改。想还原的话，从官网重新安装官方客户端即可。" ;; esac
+  if [ "$state" = "no" ]; then
     clean_client_cache
     cleanup_data
     say "当前客户端不含 BTR，没有改动客户端，只清理了备份和 BTR 的数据"
-    notify "BTR 已卸载，正在重新打开官方客户端"
-    relaunch_after_action
     return
   fi
   [ -d "$BACKUP" ] || die "没有找到备份，无法还原。可以从官网重新下载安装官方客户端。"
@@ -252,7 +244,10 @@ uninstall() {
   # 去标记会改 ctime，所以必须在计算版本记录之前做。改名不会改变里面文件的 ctime。
   xattr -dr com.apple.quarantine "$restore" 2>/dev/null || true
   sync_appinfo "$restore"
-  rm -rf "$APP" && mv "$restore" "$APP"
+  # 用改名来换：删除 400 MB 要一两秒，中途被打断的话 /Applications 里就没有客户端了。
+  local old; old="$(dirname "$APP")/.btr-old.app"
+  rm -rf "$old"
+  mv "$APP" "$old" && mv "$restore" "$APP" && rm -rf "$old"
   # 还原后的客户端就是备份本身的副本，确认它已就位且不含 BTR 后，清理 BTR 留下的文件；下次安装会重新备份。
   if [ -f "$ASAR" ] && [ "$(asar_installed "$ASAR")" = "no" ]; then
     clean_client_cache
@@ -262,8 +257,6 @@ uninstall() {
   else
     say "已还原，但没能确认还原结果，备份保留在 ${BACKUP}"
   fi
-  notify "BTR 已卸载，正在重新打开官方客户端"
-  relaunch_after_action
 }
 
 # 客户端判定“重新安装”时，会把当时的 app.asar 复制进自己的缓存目录并从那里运行。
@@ -292,7 +285,7 @@ asar_version() { python3 -I "$PATCHER" status "$1" | python3 -I -c 'import json,
 # 从客户端发起时终端正在运行 run-in-terminal.command 并往 maintain.log 写；删掉文件不影响已经打开的它们。
 cleanup_data() {
   rm -rf "$DATA/backup" "$DATA/src" "$DATA"/tmp.* "$DATA/run-in-terminal.command" "$DATA/maintain.log" "$DATA/$DATA_MARKER"
-  rm -rf "$(dirname "$APP")/.btr-restore.app" "$ASAR.btr.tmp"
+  rm -rf "$(dirname "$APP")/.btr-restore.app" "$(dirname "$APP")/.btr-old.app" "$ASAR.btr.tmp"
   rmdir "$DATA" 2>/dev/null || true
 }
 
