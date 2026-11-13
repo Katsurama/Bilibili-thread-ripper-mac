@@ -1,25 +1,25 @@
 {
-  "version": "2026.10.30.1-d2",
-  "adapterRevision": 2,
-  "sha256": "b723908142bb23c5917dc41267948ae905e4d788344ab7ff8eabe5c629be19af",
+  "version": "2026.11.10.1-d1",
+  "adapterRevision": 1,
+  "sha256": "9ab73e82db7d8013e23d3b437c1da5e3766a2c5a2cdf36b5680a81b64f942e4e",
   "files": {
-    "shared/range-core.js": "2e1289577f61c82aa60215445ca28f9e9b45d89e63364c6293a2f75925cd7fec",
-    "shared/cdn-resolver.js": "bc08768b72b425ea999f5840bd7a0a57042785da6a86778c60097aacd62e50af",
-    "shared/idm-downloader.js": "90ac02d826ea63135235303eab4cd0846a7c9bfdd67a3291baa4106542092965",
-    "shared/runtime-notices.js": "54763461c5b6b167cf879612a2e1d0c6a71cebbde02e2702669a1fc7a2be7564",
-    "shared/notification-view.js": "13bfd21f1d6768194d49e7103de38afbd4be6cb969999020424ad9799b892b37",
-    "src/settings.js": "c016ba15031b42100e5d3b5687735a23d3fac95dff700a2bb6c5cc6cacdfe2d5",
-    "src/transport.js": "af22ff6a3f8f70dbded5346b6c3d0d9ac34f70f337daa0b18005c8b1ef594d84",
-    "src/client.js": "65f56318eba1c1bf92f5b276b7731e3567877392e8454349c89a7005673b9818",
+    "shared/range-core.js": "57e8c5ee0f546f2577cb1b6e08b0d3eea2c6d06865f4207861eeb022e0acccca",
+    "shared/cdn-resolver.js": "3187e0c714b5d583be24f186d38684ee8cf1df2c0668f29c2806d18d4eb7c92e",
+    "shared/idm-downloader.js": "639412d7d94c4b15f85c050a7c962c836be7bd54babe1665892feb0bf7c006e2",
+    "shared/native-range-transport.js": "ebbb0565c70849614aabc5685d19864afecb23097d206896a525902b21b0f4d0",
+    "shared/runtime-notices.js": "65e5ca1565b38aecc5379f127d7a372ea76148504fc94a7a26a7eaa0ad86e829",
+    "shared/diagnostic-report.js": "132c66f5680fc1c6ec4da2263349e1a626e40590efee6733e3d0fbdcd52656f9",
+    "src/settings.js": "7861e03c2c07ba21e3c5d3cdd86a4bbfa0bd2561491d50ebe966962304f34094",
+    "src/page-hook.js": "27e09c8f98e783373e9f96d7b4d239f3af0c3498076ccfb89f0f360c03b0fe4d",
     "src/updates.js": "4be36c1110458d8edd04d2429b614f6f0190c23ed28c70586ac0c47edad541b2",
-    "src/settings-view.js": "60d214b534c0b99afb1cfca54692ea27c49212f2b61acb3284fd297ff5e9376b",
-    "src/player-settings.js": "21d151da22f7b2e4aa6dc33bd897f2490b237e4fbe48ba5cfa4fc1cf0891c348"
+    "src/settings-view.js": "a2c63300b0186ce6bcb2b787c9bc83185bf62b548bbac521113fa9c943729042",
+    "src/player-settings.js": "dc972e5f98ffe173d441c04ab4b7320f2baf45782caa372654689efa276688e4"
   },
-  "liveSha256": "a3560b6e6f500113955b0b2921e5c4bf41ecb4bd357d5fb6b3211970fe2650e0",
+  "liveSha256": "5bc8faa1a36f2a4ef49d1223919471a2ba7867acd5495ea09f6a7073ffdbe2c8",
   "liveFiles": {
-    "shared/range-core.js": "2e1289577f61c82aa60215445ca28f9e9b45d89e63364c6293a2f75925cd7fec",
-    "shared/live-core.js": "314ee29a7be9241f71de9488b8944973c6ab539db367614fa2d279814634203e",
-    "shared/live-hook.js": "168a72f2d67c4155ac998973dfc1bfc83116e170142f2267dc97b2970ec5040e",
+    "shared/range-core.js": "57e8c5ee0f546f2577cb1b6e08b0d3eea2c6d06865f4207861eeb022e0acccca",
+    "shared/live-core.js": "a1dd9f6ce12fa44821f376c3e9d7439eb2bfad35f283afe38fd56e1822af71bb",
+    "shared/live-hook.js": "08f446ab136a2670f97be20565d6d9b24cd0b8945d68fa18f38952bd68bcfba8",
     "src/live-ui.js": "00d94e001962aa5c8f3bd2cd1de922da70b0ed016937cfadc21a359e803a3cf4"
   }
 }

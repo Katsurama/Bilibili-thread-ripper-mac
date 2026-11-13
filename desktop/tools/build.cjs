@@ -2,8 +2,8 @@
 const fs = require("node:fs"), path = require("node:path"), crypto = require("node:crypto");
 const sha = bytes => crypto.createHash("sha256").update(bytes).digest("hex");
 const root = path.resolve(__dirname, "..");
-const shared = ["range-core.js", "cdn-resolver.js", "idm-downloader.js", "runtime-notices.js", "notification-view.js"];
-const own = ["settings.js", "transport.js", "client.js", "updates.js", "settings-view.js", "player-settings.js"];
+const shared = ["range-core.js", "cdn-resolver.js", "idm-downloader.js", "native-range-transport.js", "runtime-notices.js", "diagnostic-report.js"];
+const own = ["settings.js", "page-hook.js", "updates.js", "settings-view.js", "player-settings.js"];
 const files = [...shared.map(x => `shared/${x}`), ...own.map(x => `src/${x}`)];
 // The live player runs in live.bilibili.com frames, apart from the client pages: bootstrap.cjs
 // puts this second bundle into them. live-core.js and live-hook.js are the browser version's.

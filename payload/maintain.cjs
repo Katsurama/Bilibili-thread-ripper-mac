@@ -185,6 +185,12 @@ function register(electron) {
     if (!trusted(event) || !Object.hasOwn(LINKS, key)) throw Error("Untrusted link request");
     return shell.openExternal(LINKS[key]);
   });
+  // 复制诊断信息: the page's own clipboard call needs its window in front; this one does not.
+  ipcMain.handle("btr-desktop:copy-text", (event, text) => {
+    if (!trusted(event) || typeof text !== "string" || text.length > 500000) throw Error("Untrusted copy request");
+    electron.clipboard.writeText(text);
+    return true;
+  });
   ipcMain.handle("btr-desktop:update-install", event => maintain(event, false));
   ipcMain.handle("btr-desktop:uninstall", event => maintain(event, true));
 }

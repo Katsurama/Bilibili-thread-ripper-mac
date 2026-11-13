@@ -24,7 +24,7 @@ SOFTWARE.
 */
 (function () {
 if (globalThis.__BTR_LIVE_BUNDLE__) return;
-Object.defineProperty(globalThis, "__BTR_LIVE_BUNDLE__", { value: "2026.10.30.1-d2" });
+Object.defineProperty(globalThis, "__BTR_LIVE_BUNDLE__", { value: "2026.11.10.1-d1" });
 
 /* shared/range-core.js */
 (function installRangeCore(root) {
@@ -116,9 +116,6 @@ Object.defineProperty(globalThis, "__BTR_LIVE_BUNDLE__", { value: "2026.10.30.1-
     const source = input && typeof input === "object" ? input : {};
     const allowed = [4, 8, 16, 32, 64, 128];
     const requested = Math.trunc(Number(source.concurrency));
-    // theme, floatingButton*, guideDone, episodeEnabled, blockInternational, bufferAheadSeconds
-    // and secondaryBuffer exist only for compatibility with the upstream browser settings; the
-    // macOS compat-mode downloader does not consume them (the client's own player manages buffering).
     return {
       enabled: source.enabled !== false,
       theme: ["light", "dark"].includes(source.theme) ? source.theme : "auto",
@@ -128,6 +125,8 @@ Object.defineProperty(globalThis, "__BTR_LIVE_BUNDLE__", { value: "2026.10.30.1-
       // 剧集加速: episode pages (/bangumi/play/ep… and ss…: anime, films, documentaries, …),
       // sped up in the compatibility mode only.
       episodeEnabled: source.episodeEnabled !== false,
+      // 阻止使用国际版: keeps the viewer on Bilibili's domestic site (bilibili-site.js). Off unless
+      // switched on.
       blockInternational: source.blockInternational === true,
       // "full" replaces Bilibili's playback core; "compat" leaves it in charge and only
       // downloads its media requests.
@@ -137,27 +136,28 @@ Object.defineProperty(globalThis, "__BTR_LIVE_BUNDLE__", { value: "2026.10.30.1-
         .map(normalizeCdnHost)
         .filter((host, index, all) => host && all.indexOf(host) === index)
         .slice(0, 32),
-      // The round button in the page corner that opens the settings panel, and where the
-      // viewer dragged it: which side, and how far down as a share of the window height.
+      // The round button in the page corner that opens the settings panel.
       floatingButton: source.floatingButton !== false,
       // Where the viewer dragged it, as shares of the window (0 = flush left, 1 = flush
       // right); null when it was never moved.
       floatingButtonLeft: source.floatingButtonLeft != null && Number(source.floatingButtonLeft) >= 0 && Number(source.floatingButtonLeft) <= 1 ? Number(source.floatingButtonLeft) : null,
       floatingButtonTop: source.floatingButtonTop != null && Number(source.floatingButtonTop) >= 0 && Number(source.floatingButtonTop) <= 1 ? Number(source.floatingButtonTop) : null,
+      // The first-run guide to the floating button was answered (settings-panel.js).
       guideDone: source.guideDone === true,
-      debugNotices: source.debugNotices === true,
-      errorNotices: source.errorNotices === true,
-      debugCategories: Object.fromEntries(["takeover", "playback", "download", "buffer", "settings", "other"].map(key => [key, source.debugCategories?.[key] !== false])),
       concurrency: allowed.includes(requested) ? requested : 8,
       // 自动线程数: the downloader picks the thread count itself, between 8 and 64, and
-      // `concurrency` above is only what the viewer set by hand. Off unless asked for.
+      // `concurrency` above is only what the viewer set by hand. Off when the value is
+      // missing here; the userscript's stored settings (bridge.js) default it to on.
       autoConcurrency: source.autoConcurrency === true,
       minChunkBytes: 64 * 1024,
       firstByteTimeoutMs: 5500,
       stallTimeoutMs: 4000,
       attemptTimeoutMs: 15000,
       hedgeDelayMs: 900,
+      // 全接管预缓冲时长: how far ahead the full takeover buffers, one of a few choices.
       bufferAheadSeconds: [30, 45, 90, 180].includes(Number(source.bufferAheadSeconds)) ? Number(source.bufferAheadSeconds) : 45,
+      // 二级缓冲: what the browser's buffer has no room for waits in memory (native-mse-player.js).
+      // Experimental, off unless switched on.
       secondaryBuffer: source.secondaryBuffer === true
     };
   }
@@ -179,14 +179,15 @@ Object.defineProperty(globalThis, "__BTR_LIVE_BUNDLE__", { value: "2026.10.30.1-
 (function installLiveCore(root) {
   "use strict";
 
-  // The parts of the live module that carry logic: playinfo parsing, playlist parsing,
-  // P2P/proxy URL handling and the host pool. No DOM and no timers, so dev tests can run
-  // all of it in Node.
+  // The parts of the live module that carry logic: playlist parsing, P2P/proxy URL handling
+  // and the host pool, plus a room playinfo parser that only the tests use. No DOM and no
+  // timers, so dev tests can run all of it in Node.
 
   // fMP4 HLS nodes that accept each other's signatures, verified by probing real streams
   // (2026-09): a segment signed for one of them downloads from all of them with HTTP 206,
-  // while FLV-line (ov-gotcha07) and TS-line (gotcha105) nodes answer 403. The pool probes
-  // each candidate once per stream before trusting it.
+  // while FLV-line (ov-gotcha07) and TS-line (gotcha105) nodes answer 403. The live module
+  // probes each candidate before trusting it, again with later playlists until it passes or
+  // is banned.
   const KNOWN_FMP4_HOSTS = Object.freeze([
     "d1--cn-gotcha204.bilivideo.com",
     "d1--cn-gotcha208.bilivideo.com",
@@ -292,13 +293,14 @@ Object.defineProperty(globalThis, "__BTR_LIVE_BUNDLE__", { value: "2026.10.30.1-
 
   // Node health for one live stream. Live pieces are one second long, so the pool acts
   // fast: it ranks by first-byte time, blocks a failing node briefly, and bans one that
-  // twice sent nothing. An unproven candidate must pass a probe before it enters ranking.
+  // twice sent nothing. Proven nodes rank first; unproven candidates follow them until a
+  // probe or a download proves them.
   function createHostPool(options = {}) {
-    const health = new Map(); // host -> {fbMs, bps, failures, blockedUntil, lastSuccessAt, proven}
+    const health = new Map(); // host -> {fbMs, bps, failures, blockedUntil, proven, emptyReplies, banned}
     const now = () => (options.now ? options.now() : Date.now());
 
     function entry(host) {
-      if (!health.has(host)) health.set(host, { fbMs: 0, bps: 0, failures: 0, blockedUntil: 0, lastSuccessAt: 0, proven: false, emptyReplies: 0, banned: false });
+      if (!health.has(host)) health.set(host, { fbMs: 0, bps: 0, failures: 0, blockedUntil: 0, proven: false, emptyReplies: 0, banned: false });
       return health.get(host);
     }
 
@@ -314,7 +316,6 @@ Object.defineProperty(globalThis, "__BTR_LIVE_BUNDLE__", { value: "2026.10.30.1-
         item.emptyReplies = 0;
         item.failures = 0;
         item.blockedUntil = 0;
-        item.lastSuccessAt = now();
         if (Number(fbMs) > 0) item.fbMs = item.fbMs ? item.fbMs * 0.6 + fbMs * 0.4 : fbMs;
         if (Number(bps) > 0) item.bps = item.bps ? item.bps * 0.6 + bps * 0.4 : bps;
       },
@@ -336,9 +337,8 @@ Object.defineProperty(globalThis, "__BTR_LIVE_BUNDLE__", { value: "2026.10.30.1-
         const time = now();
         const all = [...health.entries()];
         const open = all.filter(([, item]) => !item.banned && item.blockedUntil <= time);
-        const pool = (open.length ? open : all.filter(([, item]) => !item.banned)).length
-          ? (open.length ? open : all.filter(([, item]) => !item.banned))
-          : all;
+        const unbanned = all.filter(([, item]) => !item.banned);
+        const pool = open.length ? open : unbanned.length ? unbanned : all;
         const ranked = pool.sort(([, a], [, b]) =>
           Number(b.proven) - Number(a.proven)
           || (a.fbMs || 9e9) - (b.fbMs || 9e9)
@@ -386,7 +386,6 @@ Object.defineProperty(globalThis, "__BTR_LIVE_BUNDLE__", { value: "2026.10.30.1-
   const INSTALL_FLAG = "__biliThreadRipperLiveInstalled";
   const core = root.__BILI_LIVE_CORE__;
   const rangeCore = root.__BILI_RANGE_CORE__;
-  const notices = root.__BTR_RUNTIME_NOTICES__;
   if (!core || !rangeCore || typeof root.fetch !== "function" || root[INSTALL_FLAG]) return;
   Object.defineProperty(root, INSTALL_FLAG, { value: true });
 
@@ -402,9 +401,9 @@ Object.defineProperty(globalThis, "__BTR_LIVE_BUNDLE__", { value: "2026.10.30.1-
 
   let settings = rangeCore.normalizeSettings({});
   let settingsLoaded = false;
-  // Off until the saved settings have arrived: a viewer who switched the module off must
-  // not be taken over during the first second of the page.
-  const liveOn = () => settingsLoaded && settings.enabled && settings.liveEnabled !== false;
+  // Off until the saved settings have arrived, and then only if the viewer switched it on
+  // (liveEnabled is off by default).
+  const liveOn = () => settingsLoaded && settings.enabled && settings.liveEnabled;
 
   // Bilibili's web player loads P2P SDKs that pull pieces from other viewers over WebRTC.
   // Overseas there are few viewers nearby, so P2P only adds stalls; the mocks keep the
@@ -424,7 +423,7 @@ Object.defineProperty(globalThis, "__BTR_LIVE_BUNDLE__", { value: "2026.10.30.1-
 
   // ---- stats for the settings panel ----
   const stats = {
-    version: "2026.10.30.1-d2",
+    version: "2026.11.10.1-d1",
     architecture: "live-segment-ripper",
     mode: "live",
     playerState: "waiting",
@@ -442,8 +441,16 @@ Object.defineProperty(globalThis, "__BTR_LIVE_BUNDLE__", { value: "2026.10.30.1-
     cdnHosts: [],
     lastHost: "",
     lastError: "",
+    lastErrorAt: null,
     takeoverError: null
   };
+  // What the module did, in English for the diagnostic copy (diagnostic-report.js); error
+  // messages go in as they were thrown.
+  const events = [];
+  function remember(level, what, detail = "") {
+    events.push({ at: Math.round(performance.now()), level, what, detail: String(detail).slice(0, 200) });
+    if (events.length > 60) events.shift();
+  }
   const activeTransfers = new Map();
   let transferSequence = 1;
   let publishTimer = null;
@@ -466,7 +473,8 @@ Object.defineProperty(globalThis, "__BTR_LIVE_BUNDLE__", { value: "2026.10.30.1-
   }
 
   // ---- one live stream: the playlist currently being played ----
-  // context: { key, playlistUrl, pool, cache: Map(url -> {promise, at, hit}), lastNum, mapUrl, probing }
+  // context: { key, pool, cache: Map(url -> {promise, at, hit}), lastNum, mapUrl, probing,
+  //   speculativeMisses, prefetchQueue, inflightPrefetch, urgentInflight, abort }
   let context = null;
   // The stream the player asked for most recently. A playlist answer that arrives late,
   // after the player moved on to another stream, must not bring the old one back.
@@ -484,13 +492,12 @@ Object.defineProperty(globalThis, "__BTR_LIVE_BUNDLE__", { value: "2026.10.30.1-
 
   function contextFor(playlistUrl) {
     const key = directoryOf(playlistUrl);
-    if (context?.key === key) {
-      context.playlistUrl = playlistUrl;
-      return context;
-    }
+    if (context?.key === key) return context;
     dropContext();
     const pool = core.createHostPool({
-      onBan(host) { notices?.log("已停用一个直播节点", `${host} 两次没有返回数据，这个直播接下来不再使用它。`, "error", "", "live", "download"); }
+      onBan(host) {
+        remember("warn", "node banned", `${host}, 2 failures with no data`);
+      }
     });
     let origin = "";
     try { origin = new URL(playlistUrl).hostname; } catch (_error) {}
@@ -499,15 +506,16 @@ Object.defineProperty(globalThis, "__BTR_LIVE_BUNDLE__", { value: "2026.10.30.1-
     if (origin && !core.isP2pUrl(playlistUrl)) pool.add(origin, true);
     const extra = settings.mode === "custom" ? settings.customHosts : core.KNOWN_FMP4_HOSTS;
     for (const host of extra) if (host !== origin) pool.add(host, false);
-    context = { key, playlistUrl, pool, cache: new Map(), lastNum: 0, mapUrl: "", probing: false, speculativeMisses: 0, prefetchQueue: [], inflightPrefetch: 0, urgentInflight: 0, abort: new AbortController() };
+    context = { key, pool, cache: new Map(), lastNum: 0, mapUrl: "", probing: false, speculativeMisses: 0, prefetchQueue: [], inflightPrefetch: 0, urgentInflight: 0, abort: new AbortController() };
     stats.playerState = "ready";
-    notices?.log("已接管这个直播", "直播分片改为多节点竞速下载，并提前缓存即将播放的分片。", "success", "", "live", "takeover");
+    remember("info", "took over", origin ? `stream from ${origin}` : "");
     schedulePublish();
     return context;
   }
 
-  // Candidate nodes must prove they serve this stream before ranking uses them: the
-  // signature is shared within the fMP4 node group, but a node may still lack the stream.
+  // Candidates are probed so that ranking can trust them: the signature is shared within the
+  // fMP4 node group, but a node may still lack the stream. Until proven they rank behind the
+  // proven nodes and can still get a hedge copy.
   function probeCandidates(ctx, sampleUrl) {
     if (ctx.probing) return;
     const unproven = ctx.pool.unproven();
@@ -583,7 +591,10 @@ Object.defineProperty(globalThis, "__BTR_LIVE_BUNDLE__", { value: "2026.10.30.1-
           chunks.push(value);
           received += value.byteLength;
           const item = activeTransfers.get(transferId);
-          if (item) item.bps = received * 1000 / Math.max(1, performance.now() - startedAt);
+          if (item) {
+            item.bps = received * 1000 / Math.max(1, performance.now() - startedAt);
+            item.at = Date.now();
+          }
         }
         clearTimeout(firstByteTimer);
       } else {
@@ -612,9 +623,10 @@ Object.defineProperty(globalThis, "__BTR_LIVE_BUNDLE__", { value: "2026.10.30.1-
     }
   }
 
-  // One segment: the best node first, a hedge copy on the second-best when the first is
-  // slow to produce bytes. 404 means "not born yet" for a speculative fetch and is not a
-  // node failure.
+  // One segment: the best node first, a hedge copy on the second-best if the first has not
+  // finished after a short delay (shorter when the player is waiting, longer for a
+  // speculative fetch) or fails. A 404 is never counted against a node: for a speculative
+  // fetch it means the segment is not born yet.
   async function downloadSegment(ctx, url, { speculative = false, urgent = false } = {}) {
     const hosts = ctx.pool.pick(2);
     if (!hosts.length) throw new Error("没有可用直播节点");
@@ -701,9 +713,9 @@ Object.defineProperty(globalThis, "__BTR_LIVE_BUNDLE__", { value: "2026.10.30.1-
     pumpPrefetch(ctx);
   }
 
-  // What a new playlist drives: prefetch the announced-but-uncached tail, the init map,
-  // and — once everything announced is in hand — one speculative future segment, whose
-  // 404 only means the encoder has not produced it yet.
+  // What a new playlist drives: the init map, every announced segment not yet cached, and —
+  // once all announced segments are cached or downloading — one speculative future segment,
+  // whose 404 only means the encoder has not produced it yet.
   function onPlaylist(playlistUrl, text, requestedKey) {
     if (!liveOn() || requestedKey !== latestPlaylistKey) return;
     // Only fMP4 media playlists: a master playlist or a TS stream is not the module's business.
@@ -775,7 +787,8 @@ Object.defineProperty(globalThis, "__BTR_LIVE_BUNDLE__", { value: "2026.10.30.1-
     } catch (error) {
       if (error?.name === "AbortError") throw error;
       stats.lastError = String(error?.message || error).slice(0, 160);
-      notices?.log("直播分片下载失败", `${stats.lastError}\n这一片交回给 B 站原来的连接。`, "error", "seg-fallback", "live", "download");
+      stats.lastErrorAt = Math.round(performance.now());
+      remember("warn", "segment failed", stats.lastError);
       schedulePublish();
       return nativeFetch(input, init);
     } finally {
@@ -794,8 +807,8 @@ Object.defineProperty(globalThis, "__BTR_LIVE_BUNDLE__", { value: "2026.10.30.1-
     try { return new Request(url, input); } catch (_error) { return url; }
   }
 
-  // P2P and relay-wrapped URLs route back to the best official node; without a pool yet,
-  // an smtcdns wrapper at least unwraps to the node it fronts.
+  // An smtcdns wrapper unwraps to the official node it fronts. A P2P segment (.m4s) URL moves
+  // to the best official node once a stream's pool exists; other P2P URLs pass through.
   function rewriteUrl(url) {
     const unwrapped = core.unwrapProxyUrl(url) || url;
     if (!core.isP2pUrl(unwrapped)) return unwrapped;
@@ -831,8 +844,9 @@ Object.defineProperty(globalThis, "__BTR_LIVE_BUNDLE__", { value: "2026.10.30.1-
     return nativeFetch(input, init);
   };
 
-  // A player that loads media over XMLHttpRequest gets the URL rewrite (P2P removal and
-  // best-node routing); synthesizing full XHR responses is not worth the risk here.
+  // A player that loads media over XMLHttpRequest gets only the URL rewrite: relay
+  // unwrapping, P2P segments moved to the best node, and segments of a banned node moved to
+  // the best one; synthesizing full XHR responses is not worth the risk here.
   const xhrPrototype = root.XMLHttpRequest?.prototype;
   if (xhrPrototype) {
     const nativeOpen = xhrPrototype.open;
@@ -861,10 +875,9 @@ Object.defineProperty(globalThis, "__BTR_LIVE_BUNDLE__", { value: "2026.10.30.1-
     if (event.data.type === "settings") {
       const previous = settings;
       settings = rangeCore.normalizeSettings(event.data.payload);
-      notices?.configure(settings);
       if (!settingsLoaded || previous.enabled !== settings.enabled || previous.liveEnabled !== settings.liveEnabled) {
         settingsLoaded = true;
-        notices?.log("直播加速设置已生效", liveOn() ? "直播分片使用多节点竞速下载。" : "直播加速已关闭，使用 B 站原来的连接。", "success", "", "live", "settings");
+        remember("info", "settings applied", liveOn() ? "on" : "off");
       }
       if (!liveOn()) {
         dropContext();
@@ -888,7 +901,8 @@ Object.defineProperty(globalThis, "__BTR_LIVE_BUNDLE__", { value: "2026.10.30.1-
         hosts: context.pool.status()
       },
       getStats: () => ({ ...stats }),
-      version: "2026.10.30.1-d2"
+      getEvents: () => events.map((event) => ({ ...event })),
+      version: "2026.11.10.1-d1"
     })
   });
   publish();

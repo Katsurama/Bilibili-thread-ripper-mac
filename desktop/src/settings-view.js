@@ -16,7 +16,6 @@
     #btr-desktop-settings .btr-inline{margin:0}#btr-desktop-settings .btr-threads-row.btr-auto{opacity:.45}#btr-desktop-settings .btr-threads-row.btr-auto input{cursor:default}
     #btr-desktop-settings input{accent-color:#d45b88}#btr-desktop-settings input[type=checkbox]{width:16px;height:16px;vertical-align:middle;margin:0 8px 0 0}
     #btr-desktop-settings input[type=range]{width:min(290px,55vw)}#btr-desktop-settings output{min-width:35px;color:#ef77a3;font-weight:600}
-    #btr-desktop-settings .btr-debug-options{display:grid;grid-template-columns:repeat(2,minmax(145px,1fr));gap:12px;max-width:440px;padding:12px 0 6px}
     #btr-desktop-settings .btr-custom{margin:0 0 8px 148px;max-width:520px}#btr-desktop-settings .btr-host-title{margin:14px 0 8px;color:var(--text2,#b3bfca);font-size:13px}
     #btr-desktop-settings .btr-host-list{display:grid;grid-template-columns:repeat(2,minmax(230px,1fr));gap:9px 16px;font-size:12px}#btr-desktop-settings .btr-host-list label{overflow-wrap:anywhere;cursor:pointer}
     #btr-desktop-settings .btr-host-add{display:flex;gap:8px;margin:8px 0}#btr-desktop-settings input[type=text]{flex:1;min-width:0;border:1px solid var(--line_regular,#353638);border-radius:5px;background:var(--bg3,#252729);color:inherit;padding:7px 10px;font:inherit;font-size:12px}
@@ -50,15 +49,9 @@
         <div class="btr-row"><label><input type="checkbox" data-setting="autoConcurrency">自动线程数</label><span class="btr-note btr-inline">BTR将智能选择需要的线程数。</span></div>
         <div class="btr-row btr-threads-row"><label class="btr-label" for="btr-desktop-threads">并发线程</label><input id="btr-desktop-threads" type="range" min="0" max="5" step="1"><output></output></div>
         <div class="btr-row btr-live-row"><label><input type="checkbox" data-setting="liveEnabled">直播加速（实验性）</label><span class="btr-note btr-inline">打开后，直播间画面右下角的清晰度菜单里会多一个开关，可以随时关掉。</span></div>
-        <div class="btr-row"><label><input type="checkbox" data-setting="errorNotices">显示错误</label><label><input type="checkbox" data-setting="debugNotices">Debug 模式</label></div>
-        <div class="btr-debug-wrap" hidden><div class="btr-row"><button type="button" data-select="all">全选</button><button type="button" data-select="none">全不选</button></div><div class="btr-debug-options"></div></div>
         <div class="btr-row"><label><input type="checkbox" data-setting="autoCheckUpdates">自动检查 BTR 更新</label></div>
         <div class="btr-row"><button type="button" id="btr-desktop-check-update">检查 BTR 更新</button><button type="button" id="btr-desktop-uninstall">卸载 BTR</button><button type="button" id="btr-desktop-install-update" hidden>安装更新</button></div>
         <div class="btr-note btr-update-status" role="status"></div><div class="btr-note btr-save-error" role="status"></div>`;
-      for (const [key, title] of Object.entries(api.categories)) {
-        const label = document.createElement("label"), input = document.createElement("input");
-        input.type = "checkbox"; input.dataset.category = key; label.append(input, title); panel.querySelector(".btr-debug-options").append(label);
-      }
       // The servers of the custom CDN mode: the known ones to tick, others typed in.
       const core = root.__BILI_RANGE_CORE__, cdn = root.__BILI_CDN_RESOLVER_FACTORY__, maxHosts = 32;
       const hostGroups = [["大陆节点", cdn.MAINLAND_HOSTS], ["海外节点", cdn.OVERSEAS_HOSTS]];
@@ -95,7 +88,6 @@
           hostError.textContent = ""; save({ customHosts: input.checked ? [...hosts, input.dataset.host] : hosts });
         }
         if (input.dataset.setting) save({ [input.dataset.setting]: input.checked });
-        if (input.dataset.category) save({ debugCategories: Object.fromEntries([...panel.querySelectorAll("[data-category]")].map(x => [x.dataset.category, x.checked])) });
         if (input.id === "btr-desktop-threads") save({ concurrency: threadOptions[Number(input.value)] });
       });
       panel.querySelector("input[type=range]").addEventListener("input", event => { panel.querySelector("output").textContent = String(threadOptions[Number(event.target.value)]); });
@@ -105,11 +97,9 @@
         if (button.id === "btr-desktop-host-add") addHost();
         if (button.dataset.removeHost) save({ customHosts: api.getSettings().customHosts.filter(host => host !== button.dataset.removeHost) });
         if (button.dataset.mode) save({ mode: button.dataset.mode });
-        if (button.dataset.select) save({ debugCategories: Object.fromEntries(Object.keys(api.categories).map(key => [key, button.dataset.select === "all"])) });
       });
       unsubscribe = api.onSettings(settings => {
         panel.querySelectorAll("[data-setting]").forEach(x => { x.checked = settings[x.dataset.setting]; });
-        panel.querySelectorAll("[data-category]").forEach(x => { x.checked = settings.debugCategories[x.dataset.category] !== false; });
         panel.querySelectorAll("[data-mode]").forEach(x => x.setAttribute("aria-pressed", String(x.dataset.mode === settings.mode)));
         panel.querySelector(".btr-custom").hidden = settings.mode !== "custom";
         panel.querySelector(".btr-custom-empty").hidden = settings.customHosts.length > 0;
@@ -125,7 +115,6 @@
         // With 自动线程数 on the slider is the manual choice kept for later, not in use.
         panel.querySelector("input[type=range]").disabled = settings.autoConcurrency;
         panel.querySelector(".btr-threads-row").classList.toggle("btr-auto", settings.autoConcurrency);
-        panel.querySelector(".btr-debug-wrap").hidden = !settings.debugNotices;
       });
       unsubscribeUpdate = api.onUpdate(update => {
         panel.querySelector(".btr-update-status").textContent = update.message;

@@ -2,7 +2,7 @@
   "use strict";
   const api = root.__BTR_DESKTOP__, threads = [4, 8, 16, 32, 64, 128];
   const id = "btr-desktop-player-settings";
-  let panel, unsubscribe, scheduled = false;
+  let panel, unsubscribe, scheduled = false, opened = false;
   const style = document.createElement("style");
   style.textContent = `
     #${id}{margin:0 0 16px;color:#fff;font-size:12px;text-align:left}
@@ -10,8 +10,10 @@
     #${id} .btr-native-setting-title{margin:0 0 8px;color:#fff}
     #${id} .bui-radio-group{display:flex!important;flex-wrap:wrap!important;gap:8px!important;margin:0!important}
     #${id} .bui-radio-item{margin:0!important}
-    #${id} .btr-custom-hint{margin:-8px 0 16px;color:hsla(0,0%,100%,.6);line-height:1.5}
     #${id} .btr-save-error{color:#ff8585;line-height:1.5}
+    #${id} summary{display:flex;justify-content:space-between;gap:12px;margin:0 0 16px;cursor:pointer;list-style:none}
+    #${id} summary::-webkit-details-marker{display:none}
+    #${id} summary span{color:hsla(0,0%,100%,.6)}#${id} summary span:after{content:" ▸"}#${id} details[open] summary span:after{content:" ▾"}
   `;
   (document.head || document.documentElement).append(style);
   // Keep the official player's own radio styling and secondary settings menu.
@@ -30,6 +32,37 @@
     }
     section.append(heading, content); return section;
   }
+  // 复制诊断信息, as the browser version's settings panel does it: gather what each part of BTR
+  // knows in this player window and let shared/diagnostic-report.js lay it out as English text for
+  // an issue. No download address and no account data.
+  function diagnostics() {
+    const readErrors = [];
+    const read = (name, fact, fallback = null) => { try { return fact(); } catch (error) { readErrors.push(`${name}: ${String(error?.message || error).slice(0, 160)}`); return fallback; } };
+    return String(root.__BTR_DIAGNOSTIC_REPORT__.render({
+      capturedAt: Date.now(), timeOrigin: performance.timeOrigin, now: performance.now(),
+      btr: { version: api.version, channel: "stable", otherBuild: "", scriptManager: "", host: "desktop" },
+      env: read("env", () => ({ userAgent: navigator.userAgent, language: navigator.language, viewport: `${root.innerWidth}x${root.innerHeight}`, page: `${location.origin}${location.pathname}` })),
+      settings: api.getSettings(), site: null,
+      video: read("video", () => JSON.parse(root.__biliThreadRipperDebug.report())),
+      stats: read("stats", () => root.__biliThreadRipperDebug.getStats()),
+      autoThreads: read("autoThreads", () => root.__BILI_IDM_DOWNLOADER_FACTORY__?.autoConcurrency?.status?.() ?? null),
+      media: read("media", () => root.__BTR_RUNTIME_NOTICES__?.history?.() ?? [], []),
+      live: [], readErrors
+    }));
+  }
+  // The page may write the clipboard only while its window is in front; otherwise the client's
+  // main process does it (payload/preload.cjs).
+  const copyText = text => navigator.clipboard.writeText(text).catch(() => new Promise((resolve, reject) => {
+    const channel = "__BTR_DESKTOP_UPDATE__", copyId = `${Date.now()}-${Math.random()}`;
+    const answer = event => {
+      if (event.source !== root || event.data?.channel !== channel || event.data.type !== "copied" || event.data.id !== copyId) return;
+      root.removeEventListener("message", answer); clearTimeout(timer);
+      if (event.data.ok) resolve(); else reject(Error("copy refused"));
+    };
+    const timer = setTimeout(() => { root.removeEventListener("message", answer); reject(Error("no answer")); }, 2000);
+    root.addEventListener("message", answer);
+    root.postMessage({ channel, type: "copy", id: copyId, text }, root.location.origin);
+  }));
   function mount() {
     scheduled = false;
     const target = document.querySelector(".bpx-player-ctrl-setting-menu-right");
@@ -37,17 +70,30 @@
     if (panel?.parentElement === target) return;
     unsubscribe?.(); panel?.remove();
     panel = document.createElement("div"); panel.id = id;
-    // The servers of the custom mode are picked in the client's settings page; this menu is too small for the list.
-    const hint = document.createElement("div"); hint.className = "btr-custom-hint"; hint.hidden = true;
-    panel.append(
-      group("线程撕裂者 CDN", "mode", [["mainland", "大陆 CDN"], ["overseas", "海外 CDN"], ["custom", "自定义"]]),
-      hint,
-      group("并发线程", "concurrency", [["auto", "自动"], ...threads.map(value => [value, String(value)])])
+    // One line in the client's menu, which is already long: the choices open under it.
+    const fold = document.createElement("details"), summary = document.createElement("summary"), state = document.createElement("span");
+    summary.append("线程撕裂者", state);
+    // The client rebuilds its menu now and then: stay as the viewer left it.
+    fold.open = opened; fold.addEventListener("toggle", () => { opened = fold.open; });
+    const error = document.createElement("div"); error.className = "btr-save-error"; error.setAttribute("role", "status");
+    fold.append(
+      summary,
+      group("CDN", "mode", [["mainland", "大陆 CDN"], ["overseas", "海外 CDN"], ["custom", "自定义"]]),
+      group("并发线程", "concurrency", [["auto", "自动"], ...threads.map(value => [value, String(value)])]),
+      // A button in the look of the client's own choices; it never stays picked.
+      group("诊断", "diagnostics", [["copy", "复制诊断信息"]]),
+      error
     );
-    const error = document.createElement("div"); error.className = "btr-save-error"; error.setAttribute("role", "status"); panel.append(error);
+    panel.append(fold);
     panel.addEventListener("change", event => {
       const input = event.target; if (!(input instanceof HTMLInputElement) || !input.checked) return;
       const setting = input.dataset.btrSetting;
+      if (setting === "diagnostics") {
+        input.checked = false;
+        const caption = input.parentElement.querySelector(".bui-radio-text");
+        copyText(diagnostics()).then(() => "已复制", () => "复制失败").then(text => { caption.textContent = text; setTimeout(() => { caption.textContent = "复制诊断信息"; }, 2000); });
+        return;
+      }
       if (setting !== "mode" && setting !== "concurrency") return;
       // "自动" switches 自动线程数 on; a number switches it off and sets that thread count.
       const patch = setting === "mode" ? { mode: input.value }
@@ -58,13 +104,11 @@
     target.insertBefore(panel, target.querySelector(".bpx-player-ctrl-setting-others") || target.firstChild);
     unsubscribe = api.onSettings(settings => {
       for (const input of panel.querySelectorAll("[data-btr-setting]")) {
+        if (input.dataset.btrSetting === "diagnostics") continue;
         const shown = input.dataset.btrSetting === "concurrency" && settings.autoConcurrency ? "auto" : String(settings[input.dataset.btrSetting]);
         input.checked = input.value === shown;
       }
-      hint.hidden = settings.mode !== "custom";
-      hint.textContent = settings.customHosts.length
-        ? `已选 ${settings.customHosts.length} 个服务器，在客户端「设置 → 线程撕裂者」里增减。`
-        : "还没选服务器，暂时按大陆 CDN 下载。请到客户端「设置 → 线程撕裂者」里选择。";
+      state.textContent = `${{ mainland: "大陆 CDN", overseas: "海外 CDN", custom: "自定义 CDN" }[settings.mode]} · ${settings.autoConcurrency ? "自动线程" : `${settings.concurrency} 线程`}`;
     });
   }
   const observer = new MutationObserver(() => { if (!scheduled) { scheduled = true; requestAnimationFrame(mount); } });

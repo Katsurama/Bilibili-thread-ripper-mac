@@ -6,7 +6,8 @@
 
   const PIECE_ROUNDS = 3;
   const PIECE_RETRY_WINDOW_MS = 25000;
-  const roundPause = round => Math.min(2000, 500 * (2 ** (round - 1)));
+  // The pause before a piece's next round of addresses: half a second, doubling, at most two.
+  const roundPause = (round) => Math.min(2000, 500 * (2 ** (round - 1)));
   // Below this a resumed request saves less than its own round trip costs.
   const RESUME_MIN_BYTES = 32 * 1024;
   // Hedging a piece with a playback deadline (see hedgeDue): a first copy projected to finish
@@ -117,7 +118,6 @@
         signal?.addEventListener("abort", entry.cancel, { once: true });
         this.queue.push(entry);
         this.drain();
-        this.onChange?.(this.active, this.limit, this.queue.length);
       });
     }
   }
@@ -137,6 +137,10 @@
   // ahead, the count steps back down to the level the page had before. A sign of not keeping
   // up meanwhile climbs as usual and ends the start there; so does half a minute without
   // catching up. From then on the rules above carry on.
+  //
+  // Stalls, the buffer and new starts come from the player (stall, buffer, newSession); a
+  // caller that reports none of them (the userscript's compatibility mode) gets only the
+  // slow-first-byte climb and the refusals.
   const AUTO_LADDER = Object.freeze([8, 12, 16, 24, 32, 48, 64]);
   const AUTO_STARTUP_LEVEL = 2;
   const AUTO_STARTUP_COMFORT_SECONDS = 15;
@@ -370,8 +374,8 @@
     const nativeFetch = options.nativeFetch || root.fetch.bind(root);
     const getSettings = options.getSettings;
     const onTransfer = typeof options.onTransfer === "function" ? options.onTransfer : () => null;
-    // The page replaces its settings object when something changes, so the reference
-    // tells whether the previous normalization is still valid.
+    // getSettings returns a new object whenever something changes (the userscript's page
+    // does), so the reference tells whether the previous normalization is still valid.
     let rawSettings = null;
     let normalizedSettings = null;
     let autoView = null;
@@ -431,13 +435,14 @@
     // - No data yet, or nothing new for a whole delay (stopped): copy.
     // - A deadline it meets with time to spare at its speed so far: no copy yet, the bandwidth
     //   goes to pieces needed sooner.
-    // - The copy's node known to be clearly faster: copy.
-    // - Slower than connections usually are: copy.
-    // - On pace: a copy on a node known to be no faster only takes the next piece's connection
-    //   and bandwidth; one on a node not measured yet is tried, as the chance of a faster one.
-    //   A piece that will miss its deadline even so may spend one of the range's rescue slots
-    //   on that node anyway: its measurement can be stale (a node that was slow a minute ago
-    //   may have recovered), and waiting for the request to time out costs far more.
+    // - The copy's node known to be clearly faster (HEDGE_FASTER times): copy.
+    // - Slower than connections usually are, or no usual speed measured yet: copy.
+    // - On pace: a copy on a node not known to be HEDGE_FASTER times faster only takes the
+    //   next piece's connection and bandwidth; one on a node not measured yet is tried, as
+    //   the chance of a faster one. A piece that will miss its deadline even so may spend one
+    //   of the range's rescue slots on that node anyway: its measurement can be stale (a node
+    //   that was slow a minute ago may have recovered), and waiting for the request to time
+    //   out costs far more.
     function hedgeDue(first, delayMs, deadlineAt, copyBps, rescue) {
       const now = performance.now(), ran = now - first.startedAt;
       const got = first.recorder.bytes;
@@ -480,9 +485,9 @@
     }
 
     // Only measured per-request progress can spend this bounded rescue budget. The second
-    // budget is for pieces that will miss their deadline while their copy's node is measured
-    // as no faster: that measurement can be stale, and a bounded number of such copies per
-    // range is far cheaper than waiting for a timeout.
+    // budget is for pieces that will miss their deadline while their copy's node is not
+    // measured as HEDGE_FASTER times faster: that measurement can be stale, and a bounded
+    // number of such copies per range is far cheaper than waiting for a timeout.
     function createEarlyHedge(limit) {
       return {
         progressRemaining: Math.max(0, limit),
@@ -767,7 +772,8 @@
               ? deadlineDeficitSamples + 1
               : 0;
             // A clearly slow node is rescued immediately. If the whole route is slow,
-            // two consecutive deficit samples may spend the same one-per-range budget.
+            // two consecutive deficit samples may spend the same per-range rescue budget
+            // (createEarlyHedge).
             if (Number.isFinite(deadlineAt)
               && ((missesDeadline && slowerThanPeers) || deadlineDeficitSamples >= 2)) {
               firstBecameStraggler();
@@ -791,7 +797,8 @@
               const copyBps = () => (typeof resolver.speed === "function" ? resolver.speed(url) || 0 : 0);
               // A playback-deadline request decides once its first copy has a connection (see
               // hedgeDue); one without a deadline (compatibility mode, the desktop client)
-              // keeps main's delay from the moment the piece asked, queue time included.
+              // keeps the fixed hedge delay (hedgeDelayMs), counted from the moment the piece
+              // asked, queue time included.
               const check = () => {
                 if (settled) return;
                 if (contexts[0] && hedgeDue(contexts[0], delay, deadlineNow(), copyBps(), earlyHedge)) return finish(resolve);
@@ -985,6 +992,8 @@
       return primary ? [primary, ...urls.filter((url) => url !== primary)] : urls;
     }
 
+    // Hands the finished pieces to onOrderedChunk in order: each one as soon as every piece
+    // before it has been handed over. done() waits for what has been handed over so far.
     function orderedDelivery(pieces, onOrderedChunk) {
       const ordered = new Array(pieces.length);
       let next = 0;
@@ -1088,8 +1097,9 @@
       ).map((piece, index) => ({ ...piece, index: index + 1 }));
       const delivery = orderedDelivery(pieces, options.onOrderedChunk);
       // The probe measured at least its own winner, so the pieces spread over the nodes by
-      // speed at once; the proven address stays each piece's first fallback. Only addresses
-      // that have delivered carry the first segment: a node whose probe never finished would
+      // speed at once; the proven address is among each piece's fallbacks, which
+      // pieceCandidates orders by measured speed. Only the probe's winner and nodes with a
+      // speed measurement carry the first segment: a node whose probe never finished would
       // otherwise get a share of it and hold up the start. The others stay available for
       // rescue, and later ranges try them.
       const measured = typeof resolver.speed === "function" ? (url) => resolver.speed(url) > 0 : () => false;
@@ -1163,7 +1173,7 @@
       const primaries = parallel ? assignPrimaries(preferredUrls, resolver, pieces.length) : [];
       const earlyHedge = createEarlyHedge(rescueReserve);
       const progressive = typeof options.onOrderedChunk === "function";
-      const delivery = progressive ? orderedDelivery(pieces, options.onOrderedChunk) : null;
+      const delivery = orderedDelivery(pieces, options.onOrderedChunk);
       const results = await Promise.all(pieces.map(async (piece) => {
         const result = await downloadPiece(
           piece,

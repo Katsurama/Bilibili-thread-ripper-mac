@@ -10,7 +10,6 @@
   const INSTALL_FLAG = "__biliThreadRipperLiveInstalled";
   const core = root.__BILI_LIVE_CORE__;
   const rangeCore = root.__BILI_RANGE_CORE__;
-  const notices = root.__BTR_RUNTIME_NOTICES__;
   if (!core || !rangeCore || typeof root.fetch !== "function" || root[INSTALL_FLAG]) return;
   Object.defineProperty(root, INSTALL_FLAG, { value: true });
 
@@ -26,9 +25,9 @@
 
   let settings = rangeCore.normalizeSettings({});
   let settingsLoaded = false;
-  // Off until the saved settings have arrived: a viewer who switched the module off must
-  // not be taken over during the first second of the page.
-  const liveOn = () => settingsLoaded && settings.enabled && settings.liveEnabled !== false;
+  // Off until the saved settings have arrived, and then only if the viewer switched it on
+  // (liveEnabled is off by default).
+  const liveOn = () => settingsLoaded && settings.enabled && settings.liveEnabled;
 
   // Bilibili's web player loads P2P SDKs that pull pieces from other viewers over WebRTC.
   // Overseas there are few viewers nearby, so P2P only adds stalls; the mocks keep the
@@ -66,8 +65,16 @@
     cdnHosts: [],
     lastHost: "",
     lastError: "",
+    lastErrorAt: null,
     takeoverError: null
   };
+  // What the module did, in English for the diagnostic copy (diagnostic-report.js); error
+  // messages go in as they were thrown.
+  const events = [];
+  function remember(level, what, detail = "") {
+    events.push({ at: Math.round(performance.now()), level, what, detail: String(detail).slice(0, 200) });
+    if (events.length > 60) events.shift();
+  }
   const activeTransfers = new Map();
   let transferSequence = 1;
   let publishTimer = null;
@@ -90,7 +97,8 @@
   }
 
   // ---- one live stream: the playlist currently being played ----
-  // context: { key, playlistUrl, pool, cache: Map(url -> {promise, at, hit}), lastNum, mapUrl, probing }
+  // context: { key, pool, cache: Map(url -> {promise, at, hit}), lastNum, mapUrl, probing,
+  //   speculativeMisses, prefetchQueue, inflightPrefetch, urgentInflight, abort }
   let context = null;
   // The stream the player asked for most recently. A playlist answer that arrives late,
   // after the player moved on to another stream, must not bring the old one back.
@@ -108,13 +116,12 @@
 
   function contextFor(playlistUrl) {
     const key = directoryOf(playlistUrl);
-    if (context?.key === key) {
-      context.playlistUrl = playlistUrl;
-      return context;
-    }
+    if (context?.key === key) return context;
     dropContext();
     const pool = core.createHostPool({
-      onBan(host) { notices?.log("已停用一个直播节点", `${host} 两次没有返回数据，这个直播接下来不再使用它。`, "error", "", "live", "download"); }
+      onBan(host) {
+        remember("warn", "node banned", `${host}, 2 failures with no data`);
+      }
     });
     let origin = "";
     try { origin = new URL(playlistUrl).hostname; } catch (_error) {}
@@ -123,15 +130,16 @@
     if (origin && !core.isP2pUrl(playlistUrl)) pool.add(origin, true);
     const extra = settings.mode === "custom" ? settings.customHosts : core.KNOWN_FMP4_HOSTS;
     for (const host of extra) if (host !== origin) pool.add(host, false);
-    context = { key, playlistUrl, pool, cache: new Map(), lastNum: 0, mapUrl: "", probing: false, speculativeMisses: 0, prefetchQueue: [], inflightPrefetch: 0, urgentInflight: 0, abort: new AbortController() };
+    context = { key, pool, cache: new Map(), lastNum: 0, mapUrl: "", probing: false, speculativeMisses: 0, prefetchQueue: [], inflightPrefetch: 0, urgentInflight: 0, abort: new AbortController() };
     stats.playerState = "ready";
-    notices?.log("已接管这个直播", "直播分片改为多节点竞速下载，并提前缓存即将播放的分片。", "success", "", "live", "takeover");
+    remember("info", "took over", origin ? `stream from ${origin}` : "");
     schedulePublish();
     return context;
   }
 
-  // Candidate nodes must prove they serve this stream before ranking uses them: the
-  // signature is shared within the fMP4 node group, but a node may still lack the stream.
+  // Candidates are probed so that ranking can trust them: the signature is shared within the
+  // fMP4 node group, but a node may still lack the stream. Until proven they rank behind the
+  // proven nodes and can still get a hedge copy.
   function probeCandidates(ctx, sampleUrl) {
     if (ctx.probing) return;
     const unproven = ctx.pool.unproven();
@@ -207,7 +215,10 @@
           chunks.push(value);
           received += value.byteLength;
           const item = activeTransfers.get(transferId);
-          if (item) item.bps = received * 1000 / Math.max(1, performance.now() - startedAt);
+          if (item) {
+            item.bps = received * 1000 / Math.max(1, performance.now() - startedAt);
+            item.at = Date.now();
+          }
         }
         clearTimeout(firstByteTimer);
       } else {
@@ -236,9 +247,10 @@
     }
   }
 
-  // One segment: the best node first, a hedge copy on the second-best when the first is
-  // slow to produce bytes. 404 means "not born yet" for a speculative fetch and is not a
-  // node failure.
+  // One segment: the best node first, a hedge copy on the second-best if the first has not
+  // finished after a short delay (shorter when the player is waiting, longer for a
+  // speculative fetch) or fails. A 404 is never counted against a node: for a speculative
+  // fetch it means the segment is not born yet.
   async function downloadSegment(ctx, url, { speculative = false, urgent = false } = {}) {
     const hosts = ctx.pool.pick(2);
     if (!hosts.length) throw new Error("没有可用直播节点");
@@ -325,9 +337,9 @@
     pumpPrefetch(ctx);
   }
 
-  // What a new playlist drives: prefetch the announced-but-uncached tail, the init map,
-  // and — once everything announced is in hand — one speculative future segment, whose
-  // 404 only means the encoder has not produced it yet.
+  // What a new playlist drives: the init map, every announced segment not yet cached, and —
+  // once all announced segments are cached or downloading — one speculative future segment,
+  // whose 404 only means the encoder has not produced it yet.
   function onPlaylist(playlistUrl, text, requestedKey) {
     if (!liveOn() || requestedKey !== latestPlaylistKey) return;
     // Only fMP4 media playlists: a master playlist or a TS stream is not the module's business.
@@ -399,7 +411,8 @@
     } catch (error) {
       if (error?.name === "AbortError") throw error;
       stats.lastError = String(error?.message || error).slice(0, 160);
-      notices?.log("直播分片下载失败", `${stats.lastError}\n这一片交回给 B 站原来的连接。`, "error", "seg-fallback", "live", "download");
+      stats.lastErrorAt = Math.round(performance.now());
+      remember("warn", "segment failed", stats.lastError);
       schedulePublish();
       return nativeFetch(input, init);
     } finally {
@@ -418,8 +431,8 @@
     try { return new Request(url, input); } catch (_error) { return url; }
   }
 
-  // P2P and relay-wrapped URLs route back to the best official node; without a pool yet,
-  // an smtcdns wrapper at least unwraps to the node it fronts.
+  // An smtcdns wrapper unwraps to the official node it fronts. A P2P segment (.m4s) URL moves
+  // to the best official node once a stream's pool exists; other P2P URLs pass through.
   function rewriteUrl(url) {
     const unwrapped = core.unwrapProxyUrl(url) || url;
     if (!core.isP2pUrl(unwrapped)) return unwrapped;
@@ -455,8 +468,9 @@
     return nativeFetch(input, init);
   };
 
-  // A player that loads media over XMLHttpRequest gets the URL rewrite (P2P removal and
-  // best-node routing); synthesizing full XHR responses is not worth the risk here.
+  // A player that loads media over XMLHttpRequest gets only the URL rewrite: relay
+  // unwrapping, P2P segments moved to the best node, and segments of a banned node moved to
+  // the best one; synthesizing full XHR responses is not worth the risk here.
   const xhrPrototype = root.XMLHttpRequest?.prototype;
   if (xhrPrototype) {
     const nativeOpen = xhrPrototype.open;
@@ -485,10 +499,9 @@
     if (event.data.type === "settings") {
       const previous = settings;
       settings = rangeCore.normalizeSettings(event.data.payload);
-      notices?.configure(settings);
       if (!settingsLoaded || previous.enabled !== settings.enabled || previous.liveEnabled !== settings.liveEnabled) {
         settingsLoaded = true;
-        notices?.log("直播加速设置已生效", liveOn() ? "直播分片使用多节点竞速下载。" : "直播加速已关闭，使用 B 站原来的连接。", "success", "", "live", "settings");
+        remember("info", "settings applied", liveOn() ? "on" : "off");
       }
       if (!liveOn()) {
         dropContext();
@@ -512,6 +525,7 @@
         hosts: context.pool.status()
       },
       getStats: () => ({ ...stats }),
+      getEvents: () => events.map((event) => ({ ...event })),
       version: "__BTR_VERSION__"
     })
   });

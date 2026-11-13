@@ -22,6 +22,12 @@ window.addEventListener("message", event => {
   if (event.source !== window || event.data?.channel !== channel || event.data.type !== "live-config" || typeof event.data.enabled !== "boolean") return;
   ipcRenderer.invoke("btr-desktop:live-config", event.data.enabled).catch(() => {});
 });
+// 复制诊断信息 (settings-view.js) falls back to the main process when the page may not write the clipboard.
+window.addEventListener("message", async event => {
+  if (event.source !== window || event.data?.channel !== channel || event.data.type !== "copy" || typeof event.data.text !== "string") return;
+  const ok = await ipcRenderer.invoke("btr-desktop:copy-text", event.data.text).catch(() => false);
+  window.postMessage({ channel, type: "copied", id: event.data.id, ok: ok === true }, location.origin);
+});
 window.addEventListener("message", async event => {
   if (event.source !== window || event.data?.channel !== channel || event.data.type !== "check" || checking || acting) return;
   checking = true; const ticket = epoch;
