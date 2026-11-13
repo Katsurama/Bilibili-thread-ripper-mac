@@ -3,63 +3,67 @@
 <img src="https://raw.githubusercontent.com/MrTangLuyao/Bilibili-thread-ripper/main/icons/icon-128.png" width="112" alt="线程撕裂者图标">
 
 # BTR Desktop for macOS（非官方）
-**源项目：[Bilibili 线程撕裂者](https://github.com/MrTangLuyao/Bilibili-thread-ripper)**
 
-**基于[Bilibili 线程撕裂者桌面版](https://github.com/MrTangLuyao/Bilibili-thread-ripper-desktop) 的 macOS 移植，适用于官方哔哩哔哩 macOS 客户端**
+**[Bilibili 线程撕裂者桌面版](https://github.com/MrTangLuyao/Bilibili-thread-ripper-desktop) 的 macOS 移植，适用于官方哔哩哔哩 macOS 客户端**
 
-把[线程撕裂者](https://github.com/MrTangLuyao/Bilibili-thread-ripper)带到官方 macOS 客户端里，原本的播放器、字幕、弹幕和快捷键都保留
+把线程撕裂者带到官方 macOS 客户端里：视频多线程下载，直播多节点竞速<br>
+原本的播放器、字幕、弹幕和快捷键都保留
 
-已在 macOS 27.2（Apple M4）、官方客户端 **1.19.0**、BTR Desktop **2026.10.30.1-d2** 实测
+[![平台](https://img.shields.io/badge/%E5%B9%B3%E5%8F%B0-macOS-555555?style=flat-square&logo=apple)](#-安装) [![版本](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2FKatsurama%2FBilibili-thread-ripper-mac%2Fmain%2Fmac-version.json&query=%24.version&label=%E7%89%88%E6%9C%AC&style=flat-square&color=fb7299)](#-最近更新) [![Win 版](https://img.shields.io/badge/Win%20%E7%89%88-BTR%20Desktop-0078d4?style=flat-square&logo=windows)](https://github.com/MrTangLuyao/Bilibili-thread-ripper-desktop) [![源项目](https://img.shields.io/badge/%E6%BA%90%E9%A1%B9%E7%9B%AE-%E6%B2%B9%E7%8C%B4%E8%84%9A%E6%9C%AC-fb7299?style=flat-square)](https://github.com/MrTangLuyao/Bilibili-thread-ripper) [![Stars](https://img.shields.io/github/stars/Katsurama/Bilibili-thread-ripper-mac?style=flat-square&color=f5b301)](https://github.com/Katsurama/Bilibili-thread-ripper-mac/stargazers) [![许可证](https://img.shields.io/github/license/Katsurama/Bilibili-thread-ripper-mac?label=%E8%AE%B8%E5%8F%AF%E8%AF%81&style=flat-square&color=3b82f6)](LICENSE)
 
-[![平台](https://img.shields.io/badge/%E5%B9%B3%E5%8F%B0-macOS-555555?style=flat-square&logo=apple)](#-安装) [![win版](https://img.shields.io/badge/%E5%8E%9F%E9%A1%B9%E7%9B%AE-BTR%20Desktop-0078d4?style=flat-square)](https://github.com/MrTangLuyao/Bilibili-thread-ripper-desktop) [![源项目](https://img.shields.io/badge/%E7%BD%91%E9%A1%B5%E7%89%88-%E6%B2%B9%E7%8C%B4%E8%84%9A%E6%9C%AC-fb7299?style=flat-square)](https://github.com/MrTangLuyao/Bilibili-thread-ripper) [![许可证](https://img.shields.io/github/license/Katsurama/Bilibili-thread-ripper-mac?label=%E8%AE%B8%E5%8F%AF%E8%AF%81&style=flat-square&color=3b82f6)](LICENSE)
-
-[**安装**](#-安装) · [设置](#️-设置) · [直播加速](#-直播加速实验性) · [更新](#-更新) · [卸载](#-卸载) · [常见问题](#-常见问题) · [原项目](https://github.com/MrTangLuyao/Bilibili-thread-ripper-desktop)
+[**安装**](#-安装) · [最近更新](#-最近更新) · [设置](#️-设置) · [直播加速](#-直播加速实验性) · [更新](#-更新) · [卸载](#-卸载) · [常见问题](#-常见问题)
 
 <a href="https://www.bilibili.com/video/BV1chxT6xEr7"><img src="docs/images/video-cover.jpg" alt="在哔哩哔哩观看 BTR Desktop for macOS 介绍视频" width="72%"></a>
 
 [▶ 在 B 站看介绍视频](https://www.bilibili.com/video/BV1chxT6xEr7)（2 分 50 秒）
 
-
-<img src="docs/images/system-settings.gif" alt="macOS 客户端设置页里的 BTR Desktop for macOS" width="49%"> <img src="docs/images/player-settings.gif" alt="macOS 客户端播放器设置里的线程撕裂者 CDN 和并发线程" width="49%">
+<sub>已在 macOS 27.2（Apple M4）、官方客户端 **1.19.0**、BTR Desktop **2026.11.10.1-d1** 实测</sub>
 
 </div>
 
 > [!WARNING]
 > 这是社区做的**非官方**移植，不是原作者发布的版本。原作者明确表示不会做 macOS 版，**请不要把这里的问题报到原仓库**，有问题请在本仓库的 Issues 里反馈。
+>
 > 作者能力有限，可能不会长期维护此项目。
 
 > [!NOTE]
-> 和原版一样，桌面版工作在类似网页版“兼容模式”的方式下：只接管视频下载，播放仍由客户端自己负责，所以效果可能不如网页版，但相比原生依旧提升明显。
-
-> [!NOTE] 
->本项目是非官方、实验性质的开源项目。它不会绕过会员、登录、区域、清晰度、审核状态、数字版权保护或媒体签名限制。
-
-> [!IMPORTANT]
-> 本脚本是针对海外用户优化的，对于中国大陆用户优化有限，如果你在中国大陆，你应该优先检查自身的网络情况。
-
-> [!TIP]
-> 如果 BTR 帮到了你，欢迎分享给同样在海外看 B 站的朋友，也可以给项目点个 Star ⭐，让更多人看到它。
-
-> [!TIP]
-> 其他平台的项目项目：
->
-> | 名字 | 适用平台 | 作者 | 链接 |
-> | --- | --- | --- | --- |
-> | BiliFast | iOS | KaiC5504 | [GitHub](https://github.com/KaiC5504/BiliFast) |
-> | MyTVB-Speed-Boost | Android TV | nitansde | [GitHub](https://github.com/nitansde/MyTVB-Speed-Boost) |
-> | PiliPlus 海外加速版 | Android、iOS、Windows、macOS、Linux | lemonteaau | [GitHub](https://github.com/lemonteaau/PiliPlus) |
-> | PiliPlus-BTR | Android、iOS | nishuodedui1145-del | [GitHub](https://github.com/nishuodedui1145-del/PiliPlus) |
->
-> 它们由社区独立维护，效果不做保证。
+> 和 Win 版一样，这里用的是网页版的“兼容模式”，也只支持这一种：只接管视频下载，播放仍由客户端自己负责，所以效果可能不如网页版，但相比原生依旧提升明显。
 
 ## ✨ 它能做什么
 
-- **原生客户端不变**：播放器、字幕、弹幕和快捷键都保留，BTR 只接管视频下载
-- **直播加速（实验性）**：移植自网页版的直播模块，直播分片从多个节点竞速下载，并提前预取下一片，减少卡顿和转圈。默认关闭，在设置里打开
-- **内置原项目代码**：[desktop/](desktop) 里是 BTR Desktop **2026.10.30.1-d2** 的 macOS 适配源码（MIT），共享下载逻辑与网页版保持同步；直播模块保留本仓库的 macOS 注入和开关改动
-- **客户端里更新和卸载**：设置页里检查更新、一键卸载，确认后在“终端”里完成，结束后自动重新打开客户端
-- **随时一键还原**：安装前完整备份官方客户端，卸载时原样还原，不动账号和数据
-- **只用系统自带工具**：`python3`、`git` 和 `codesign`，不需要安装 Node.js
+| | |
+| --- | --- |
+| 🎬 **原生客户端不变** | 播放器、字幕、弹幕和快捷键都保留，BTR 只接管视频下载 |
+| ⚡ **多线程、多节点下载** | 一段视频拆成多块，同时从多个 CDN 节点下载；线程数可以自动调节，CDN 可以选大陆、海外或自己勾选 |
+| 📺 **番剧、电影也加速** | 普通视频和番剧、电影都能接管；带 DRM 的和只能试看的交回客户端自己下载 |
+| 🛟 **出问题自动退回** | 坏节点自动停用；某一段下载失败就交回客户端的播放器重新下载，不会卡住视频 |
+| 📡 **直播加速（实验性）** | 直播分片从多个节点竞速下载，并提前预取下一片，减少卡顿和转圈。默认关闭，在设置里打开 |
+| 🩺 **一键复制诊断信息** | 遇到问题时点一下，就能把排查需要的信息贴到 issue 里，里面没有下载地址和账号信息 |
+| 🔄 **客户端里更新和卸载** | 设置页里检查更新、一键卸载，确认后在“终端”里完成，结束后自动重新打开客户端 |
+| ↩️ **随时一键还原** | 安装前完整备份官方客户端，卸载时原样还原，不动账号和数据 |
+| 🧰 **只用系统自带工具** | `python3`、`git` 和 `codesign`，不需要安装 Node.js |
+
+<p align="center"><img src="docs/images/system-settings.gif" alt="macOS 客户端设置页里的 BTR Desktop for macOS" width="49%"> <img src="docs/images/player-settings.gif" alt="macOS 客户端播放器设置里的线程撕裂者 CDN 和并发线程" width="49%"></p>
+
+<p align="center"><sub>左：客户端设置页里的 BTR 设置　右：播放器“更多播放设置”里的 CDN 和线程数<br>动图录于旧版本：新版设置页里没有“显示错误”“Debug 模式”，播放器菜单里的 BTR 设置收成了一行“线程撕裂者”，点开才展开</sub></p>
+
+## 🆕 最近更新
+
+**2026.11.14.1**（内置 BTR Desktop 2026.11.10.1-d1，共用下载代码与网页版 2026.11.13.1 相同）
+
+- **下载接管换成网页版的“兼容模式”**：跟随 Win 版上游，不再用原来单独写的那一套。两边现在是同一份代码，上游修了什么，这里同步后就一起修好
+- **番剧、电影也能加速**：带 DRM 的和只能试看的剧集不接管，由客户端自己下载
+- **失败时更稳**：某一段下载失败，直接交回客户端的播放器重试，不再由 BTR 自己重发
+- **新增“复制诊断信息”**：在播放器的设置菜单里点一下，就会把播放状态、节点测速和最近发生的事整理成一段英文文本，贴到 issue 里就能排查
+- **播放器菜单更短**：BTR 的设置收成一行“线程撕裂者”，旁边显示当前的 CDN 和线程数，点开才展开，不再把客户端自己的“其他设置”挤出窗口
+- **去掉“显示错误”和“Debug 模式”**：屏幕上的提示气泡跟着上游一起删了，旧设置里的这两项升级后自动丢掉，CDN、线程数和直播加速的设置都保留
+- **直播模块同步网页版**：跟到网页版 2026.11.13.1，屏幕上的提示同样去掉
+
+**2026.11.10.1**
+
+- 更新时没能从 GitHub 拉到新代码，会明确提示，不再悄悄装回旧版本
+- 卸载改成整体替换客户端，中途失败不会留下半个客户端；读不出客户端状态时不做任何修改
+- 下载命令改成只取最新一版（`git clone --depth 1`），更快
 
 ## 📡 直播加速（实验性）
 
@@ -107,34 +111,14 @@
 > [!IMPORTANT]
 > 装着 BTR 的时候请保留 `~/btr-mac`：客户端里的更新和卸载按钮会用到里面的脚本。
 
-## 🔁 重新下载
-
-**2026 年 10 月 22 日之前下载过本仓库的用户请看这里。**
-
-本仓库的提交历史在 2026 年 10 月 22 日整理过一次，之前下载的 `~/btr-mac` 和 GitHub 上的对不上，更新时会提示“安装脚本更新失败，继续使用当前版本”。⌘Q 退出客户端后，在终端里重新下载并安装（不会动客户端的账号和设置，也不用先卸载）：
-
-```bash
-rm -rf ~/btr-mac
-```
-
-```bash
-git clone --depth 1 https://github.com/Katsurama/Bilibili-thread-ripper-mac.git ~/btr-mac
-```
-
-```bash
-bash ~/btr-mac/install-mac.sh
-```
-
-`~/btr-mac` 里只有安装脚本，删掉它不影响已经装好的 BTR，重新下载后客户端里的更新就恢复正常了。
-
 ## ⚙️ 设置
 
-设置项和原版相同，只多了一个“直播加速（实验性）”。设置页标题下面会显示 macOS 移植的版本、基于的 BTR Desktop 版本、问题反馈说明和原项目的 MIT 许可证。有两个入口，两边的设置同步：
+设置都放在客户端自己的界面里，没有 Win 版的悬浮球；设置项和 Win 版相同，只多了一个“直播加速（实验性）”。设置页标题下面会显示 macOS 移植的版本、基于的 BTR Desktop 版本、问题反馈说明和原项目的 MIT 许可证。有三个入口，设置互相同步：
 
 | 入口 | 可以调整 |
 | --- | --- |
-| **设置** 最上面的“BTR Desktop for macOS”（右侧目录里叫“BTR for macOS”，页首左图） | 全部设置，以及检查更新、卸载 |
-| 播放器 **齿轮 → 更多播放设置**（页首右图） | CDN 和线程数 |
+| **设置** 最上面的“BTR Desktop for macOS”（右侧目录里叫“BTR for macOS”） | 全部设置，以及检查更新、卸载 |
+| 播放器 **齿轮 → 更多播放设置 → 线程撕裂者**（点一下展开） | CDN、线程数、复制诊断信息 |
 | 直播间画面右下角的 **清晰度菜单** | 直播加速的开关，以及当前的加速状态 |
 
 | 设置 | 默认 | 说明 |
@@ -143,14 +127,23 @@ bash ~/btr-mac/install-mac.sh
 | CDN 模式 | 大陆 CDN | 也可以选海外或自定义（勾选节点，或手动添加 B 站的视频服务器） |
 | 自动线程数 | 开 | BTR 自动选择需要的线程数 |
 | 并发线程 | 8 | 关掉“自动线程数”后才生效，一般推荐 8 到 32，不够流畅再往上加 |
-| 显示错误 | 关 | 红色错误提示默认不显示，需要排查时打开 |
-| Debug 模式 | 关 | 显示 BTR 的工作过程，用来确认 BTR 在工作 |
-| 自动检查 BTR 更新 | 开 | 每 30 分钟检查一次，有新版本时在这个设置页里显示，不会弹窗 |
 | 直播加速（实验性） | 关 | 打开后，直播间的清晰度菜单里会多一个开关，可以随时关掉。关着时不会往直播间注入任何代码，详见[直播加速](#-直播加速实验性) |
+| 自动检查 BTR 更新 | 开 | 每 30 分钟检查一次，有新版本时在这个设置页里显示，不会弹窗 |
 
-自定义 CDN、坏节点自动停用等功能的说明请看 [原项目的设置说明](https://github.com/MrTangLuyao/Bilibili-thread-ripper-desktop#️-设置)。
+自定义 CDN、坏节点自动停用等功能的说明请看 [Win 版的设置说明](https://github.com/MrTangLuyao/Bilibili-thread-ripper-desktop#️-设置)。
 
-想确认 BTR 在工作：在 **设置 → BTR Desktop for macOS** 打开 Debug，播放视频时会出现“已收到客户端播放地址”等提示。
+### 怎么确认 BTR 在工作
+
+播放视频时在播放器 **齿轮 → 更多播放设置 → 线程撕裂者** 里点 **复制诊断信息**，贴到任意文本框里，看开头的 Summary：
+
+```text
+engine        compat (setting compat)
+threads       12 (auto)
+requests      98: 39 ok, 0 failed, 59 cancelled
+nodes         3 healthy, 10 untested
+```
+
+`engine` 一行是 `compat` 就是 BTR 在下载；是 `native` 说明这个视频交给了客户端自己下载。遇到问题时，把复制的全部内容贴到 issue 里，里面没有下载地址和账号信息。
 
 ## 🔄 更新
 
@@ -169,7 +162,7 @@ bash ~/btr-mac/install-mac.sh update
 
 ### 官方客户端更新以后
 
-官方客户端平时的热更新不会去掉 BTR。如果重新下载官方安装包覆盖安装，BTR 会被覆盖，⌘Q 退出客户端后再运行一次安装命令即可（macOS 版没有原版那样的后台监视提醒）。
+官方客户端平时的热更新不会去掉 BTR。如果重新下载官方安装包覆盖安装，BTR 会被覆盖，⌘Q 退出客户端后再运行一次安装命令即可（macOS 版没有 Win 版那样的后台监视提醒）。
 
 ## 🧹 卸载
 
@@ -189,6 +182,26 @@ bash ~/btr-mac/install-mac.sh uninstall
 ```bash
 rm -rf ~/btr-mac
 ```
+
+## 🔁 重新下载
+
+**2026 年 10 月 22 日之前下载过本仓库的用户请看这里。**
+
+本仓库的提交历史在 2026 年 10 月 22 日整理过一次，之前下载的 `~/btr-mac` 和 GitHub 上的对不上，更新时会提示“安装脚本更新失败，继续使用当前版本”。⌘Q 退出客户端后，在终端里重新下载并安装（不会动客户端的账号和设置，也不用先卸载）：
+
+```bash
+rm -rf ~/btr-mac
+```
+
+```bash
+git clone --depth 1 https://github.com/Katsurama/Bilibili-thread-ripper-mac.git ~/btr-mac
+```
+
+```bash
+bash ~/btr-mac/install-mac.sh
+```
+
+`~/btr-mac` 里只有安装脚本，删掉它不影响已经装好的 BTR，重新下载后客户端里的更新就恢复正常了。
 
 ## ❓ 常见问题
 
@@ -244,8 +257,8 @@ rm -rf ~/btr-mac
 
 ## 📄 致谢与许可
 
-- BTR 下载内核与界面：[MrTangLuyao/Bilibili-thread-ripper-desktop](https://github.com/MrTangLuyao/Bilibili-thread-ripper-desktop)，作者 LouieTang，MIT 许可证；图标同样来自原项目
-- 直播加速模块：[MrTangLuyao/Bilibili-thread-ripper](https://github.com/MrTangLuyao/Bilibili-thread-ripper)（网页版），版权归 Bilibili-thread-ripper contributors，MIT 许可证，全文见 [desktop/LICENSE-Bilibili-thread-ripper](desktop/LICENSE-Bilibili-thread-ripper)
+- Win 版 BTR Desktop（接到客户端播放器上的代码和设置界面）：[MrTangLuyao/Bilibili-thread-ripper-desktop](https://github.com/MrTangLuyao/Bilibili-thread-ripper-desktop)，作者 LouieTang，MIT 许可证；图标同样来自原项目
+- 源项目（下载内核、兼容模式和直播加速模块）：[MrTangLuyao/Bilibili-thread-ripper](https://github.com/MrTangLuyao/Bilibili-thread-ripper)（网页版油猴脚本），版权归 Bilibili-thread-ripper contributors，MIT 许可证，全文见 [desktop/LICENSE-Bilibili-thread-ripper](desktop/LICENSE-Bilibili-thread-ripper)
 - `btr_mac.py` 的 ASAR 读写和注入方式移植自原仓库的 `tools/asar.cjs` 与 `tools/client-package.cjs`
 
 本仓库同样以 [MIT 开源协议](LICENSE) 发布。
