@@ -3,10 +3,11 @@
 <img src="https://raw.githubusercontent.com/MrTangLuyao/Bilibili-thread-ripper/main/icons/icon-128.png" width="112" alt="线程撕裂者图标">
 
 # BTR Desktop for macOS（非官方）
+**源项目：[Bilibili 线程撕裂者](https://github.com/MrTangLuyao/Bilibili-thread-ripper)**
 
-**[Bilibili 线程撕裂者桌面版](https://github.com/MrTangLuyao/Bilibili-thread-ripper-desktop) 的 macOS 移植，适用于官方哔哩哔哩 macOS 客户端**
+**基于[Bilibili 线程撕裂者桌面版](https://github.com/MrTangLuyao/Bilibili-thread-ripper-desktop) 的 macOS 移植，适用于官方哔哩哔哩 macOS 客户端**
 
-把线程撕裂者带到官方 macOS 客户端里：视频多线程下载，直播多节点竞速<br>
+把[线程撕裂者](https://github.com/MrTangLuyao/Bilibili-thread-ripper)带到官方 macOS 客户端里：视频多线程下载，直播多节点竞速<br>
 原本的播放器、字幕、弹幕和快捷键都保留
 
 [![平台](https://img.shields.io/badge/%E5%B9%B3%E5%8F%B0-macOS-555555?style=flat-square&logo=apple)](#-安装) [![版本](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2FKatsurama%2FBilibili-thread-ripper-mac%2Fmain%2Fmac-version.json&query=%24.version&label=%E7%89%88%E6%9C%AC&style=flat-square&color=fb7299)](#-最近更新) [![Win 版](https://img.shields.io/badge/Win%20%E7%89%88-BTR%20Desktop-0078d4?style=flat-square&logo=windows)](https://github.com/MrTangLuyao/Bilibili-thread-ripper-desktop) [![源项目](https://img.shields.io/badge/%E6%BA%90%E9%A1%B9%E7%9B%AE-%E6%B2%B9%E7%8C%B4%E8%84%9A%E6%9C%AC-fb7299?style=flat-square)](https://github.com/MrTangLuyao/Bilibili-thread-ripper) [![Stars](https://img.shields.io/github/stars/Katsurama/Bilibili-thread-ripper-mac?style=flat-square&color=f5b301)](https://github.com/Katsurama/Bilibili-thread-ripper-mac/stargazers) [![许可证](https://img.shields.io/github/license/Katsurama/Bilibili-thread-ripper-mac?label=%E8%AE%B8%E5%8F%AF%E8%AF%81&style=flat-square&color=3b82f6)](LICENSE)
@@ -23,11 +24,31 @@
 
 > [!WARNING]
 > 这是社区做的**非官方**移植，不是原作者发布的版本。原作者明确表示不会做 macOS 版，**请不要把这里的问题报到原仓库**，有问题请在本仓库的 Issues 里反馈。
->
 > 作者能力有限，可能不会长期维护此项目。
 
 > [!NOTE]
 > 和 Win 版一样，这里用的是网页版的“兼容模式”，也只支持这一种：只接管视频下载，播放仍由客户端自己负责，所以效果可能不如网页版，但相比原生依旧提升明显。
+
+> [!NOTE] 
+>本项目是非官方、实验性质的开源项目。它不会绕过会员、登录、区域、清晰度、审核状态、数字版权保护或媒体签名限制。
+
+> [!IMPORTANT]
+> 本脚本是针对海外用户优化的，对于中国大陆用户优化有限，如果你在中国大陆，你应该优先检查自身的网络情况。
+
+> [!TIP]
+> 如果 BTR 帮到了你，欢迎分享给同样在海外看 B 站的朋友，也可以给项目点个 Star ⭐，让更多人看到它。
+
+> [!TIP]
+> 其他平台的项目项目：
+>
+> | 名字 | 适用平台 | 作者 | 链接 |
+> | --- | --- | --- | --- |
+> | BiliFast | iOS | KaiC5504 | [GitHub](https://github.com/KaiC5504/BiliFast) |
+> | MyTVB-Speed-Boost | Android TV | nitansde | [GitHub](https://github.com/nitansde/MyTVB-Speed-Boost) |
+> | PiliPlus 海外加速版 | Android、iOS、Windows、macOS、Linux | lemonteaau | [GitHub](https://github.com/lemonteaau/PiliPlus) |
+> | PiliPlus-BTR | Android、iOS | nishuodedui1145-del | [GitHub](https://github.com/nishuodedui1145-del/PiliPlus) |
+>
+> 它们由社区独立维护，效果不做保证。
 
 ## ✨ 它能做什么
 
