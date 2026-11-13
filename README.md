@@ -30,6 +30,27 @@
 
 > [!NOTE]
 > 和原版一样，桌面版工作在类似网页版“兼容模式”的方式下：只接管视频下载，播放仍由客户端自己负责，所以效果可能不如网页版，但相比原生依旧提升明显。
+> [!NOTE] 
+>本项目是非官方、实验性质的开源项目。它不会绕过会员、登录、区域、清晰度、审核状态、数字版权保护或媒体签名限制。
+
+> [!IMPORTANT]
+> 本脚本是针对海外用户优化的，对于中国大陆用户优化有限，如果你在中国大陆，你应该优先检查自身的网络情况。
+
+> [!TIP]
+> 如果 BTR 帮到了你，欢迎分享给同样在海外看 B 站的朋友，也可以给项目点个 Star ⭐，让更多人看到它。
+
+> [!TIP]
+> 想在全平台使用？试试这些项目：
+>
+> | 名字 | 适用平台 | 作者 | 链接 |
+> | --- | --- | --- | --- |
+> | Bilibili-thread-ripper-desktop | Windows 哔哩哔哩客户端 | LouieTang | [GitHub](https://github.com/MrTangLuyao/Bilibili-thread-ripper-desktop) |
+> | BiliFast | iOS | KaiC5504 | [GitHub](https://github.com/KaiC5504/BiliFast) |
+> | MyTVB-Speed-Boost | Android TV | nitansde | [GitHub](https://github.com/nitansde/MyTVB-Speed-Boost) |
+> | PiliPlus 海外加速版 | Android、iOS、Windows、macOS、Linux | lemonteaau | [GitHub](https://github.com/lemonteaau/PiliPlus) |
+> | PiliPlus-BTR | Android、iOS | nishuodedui1145-del | [GitHub](https://github.com/nishuodedui1145-del/PiliPlus) |
+>
+> 它们由社区独立维护，效果不做保证。
 
 ## ✨ 它能做什么
 
