@@ -3,14 +3,15 @@
 <img src="https://raw.githubusercontent.com/MrTangLuyao/Bilibili-thread-ripper/main/icons/icon-128.png" width="112" alt="线程撕裂者图标">
 
 # BTR Desktop for macOS（非官方）
+**源项目：[Bilibili 线程撕裂者](https://github.com/MrTangLuyao/Bilibili-thread-ripper)**
 
-**[Bilibili 线程撕裂者桌面版](https://github.com/MrTangLuyao/Bilibili-thread-ripper-desktop) 的 macOS 移植，适用于官方哔哩哔哩 macOS 客户端**
+**基于[Bilibili 线程撕裂者桌面版](https://github.com/MrTangLuyao/Bilibili-thread-ripper-desktop) 的 macOS 移植，适用于官方哔哩哔哩 macOS 客户端**
 
-把线程撕裂者带到官方 macOS 客户端里，原本的播放器、字幕、弹幕和快捷键都保留
+把[线程撕裂者](https://github.com/MrTangLuyao/Bilibili-thread-ripper)带到官方 macOS 客户端里，原本的播放器、字幕、弹幕和快捷键都保留
 
 已在 macOS 27.2（Apple M4）、官方客户端 **1.19.0**、BTR Desktop **2026.10.30.1-d2** 实测
 
-[![平台](https://img.shields.io/badge/%E5%B9%B3%E5%8F%B0-macOS-555555?style=flat-square&logo=apple)](#-安装) [![原项目](https://img.shields.io/badge/%E5%8E%9F%E9%A1%B9%E7%9B%AE-BTR%20Desktop-0078d4?style=flat-square)](https://github.com/MrTangLuyao/Bilibili-thread-ripper-desktop) [![网页版](https://img.shields.io/badge/%E7%BD%91%E9%A1%B5%E7%89%88-%E6%B2%B9%E7%8C%B4%E8%84%9A%E6%9C%AC-fb7299?style=flat-square)](https://github.com/MrTangLuyao/Bilibili-thread-ripper) [![许可证](https://img.shields.io/github/license/Katsurama/Bilibili-thread-ripper-mac?label=%E8%AE%B8%E5%8F%AF%E8%AF%81&style=flat-square&color=3b82f6)](LICENSE)
+[![平台](https://img.shields.io/badge/%E5%B9%B3%E5%8F%B0-macOS-555555?style=flat-square&logo=apple)](#-安装) [![win版](https://img.shields.io/badge/%E5%8E%9F%E9%A1%B9%E7%9B%AE-BTR%20Desktop-0078d4?style=flat-square)](https://github.com/MrTangLuyao/Bilibili-thread-ripper-desktop) [![源项目](https://img.shields.io/badge/%E7%BD%91%E9%A1%B5%E7%89%88-%E6%B2%B9%E7%8C%B4%E8%84%9A%E6%9C%AC-fb7299?style=flat-square)](https://github.com/MrTangLuyao/Bilibili-thread-ripper) [![许可证](https://img.shields.io/github/license/Katsurama/Bilibili-thread-ripper-mac?label=%E8%AE%B8%E5%8F%AF%E8%AF%81&style=flat-square&color=3b82f6)](LICENSE)
 
 [**安装**](#-安装) · [设置](#️-设置) · [直播加速](#-直播加速实验性) · [更新](#-更新) · [卸载](#-卸载) · [常见问题](#-常见问题) · [原项目](https://github.com/MrTangLuyao/Bilibili-thread-ripper-desktop)
 
@@ -25,11 +26,11 @@
 
 > [!WARNING]
 > 这是社区做的**非官方**移植，不是原作者发布的版本。原作者明确表示不会做 macOS 版，**请不要把这里的问题报到原仓库**，有问题请在本仓库的 Issues 里反馈。
->
 > 作者能力有限，可能不会长期维护此项目。
 
 > [!NOTE]
 > 和原版一样，桌面版工作在类似网页版“兼容模式”的方式下：只接管视频下载，播放仍由客户端自己负责，所以效果可能不如网页版，但相比原生依旧提升明显。
+
 > [!NOTE] 
 >本项目是非官方、实验性质的开源项目。它不会绕过会员、登录、区域、清晰度、审核状态、数字版权保护或媒体签名限制。
 
@@ -40,11 +41,10 @@
 > 如果 BTR 帮到了你，欢迎分享给同样在海外看 B 站的朋友，也可以给项目点个 Star ⭐，让更多人看到它。
 
 > [!TIP]
-> 想在全平台使用？试试这些项目：
+> 其他平台的项目项目：
 >
 > | 名字 | 适用平台 | 作者 | 链接 |
 > | --- | --- | --- | --- |
-> | Bilibili-thread-ripper-desktop | Windows 哔哩哔哩客户端 | LouieTang | [GitHub](https://github.com/MrTangLuyao/Bilibili-thread-ripper-desktop) |
 > | BiliFast | iOS | KaiC5504 | [GitHub](https://github.com/KaiC5504/BiliFast) |
 > | MyTVB-Speed-Boost | Android TV | nitansde | [GitHub](https://github.com/nitansde/MyTVB-Speed-Boost) |
 > | PiliPlus 海外加速版 | Android、iOS、Windows、macOS、Linux | lemonteaau | [GitHub](https://github.com/lemonteaau/PiliPlus) |
