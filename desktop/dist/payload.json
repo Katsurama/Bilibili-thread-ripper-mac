@@ -1,7 +1,7 @@
 {
   "version": "2026.11.10.1-d1",
   "adapterRevision": 1,
-  "sha256": "9ab73e82db7d8013e23d3b437c1da5e3766a2c5a2cdf36b5680a81b64f942e4e",
+  "sha256": "35605b7a78e0e50830363d313d9081185f65a54e4c2c78b1ea2ce5717b871a1f",
   "files": {
     "shared/range-core.js": "57e8c5ee0f546f2577cb1b6e08b0d3eea2c6d06865f4207861eeb022e0acccca",
     "shared/cdn-resolver.js": "3187e0c714b5d583be24f186d38684ee8cf1df2c0668f29c2806d18d4eb7c92e",
@@ -13,7 +13,7 @@
     "src/page-hook.js": "27e09c8f98e783373e9f96d7b4d239f3af0c3498076ccfb89f0f360c03b0fe4d",
     "src/updates.js": "4be36c1110458d8edd04d2429b614f6f0190c23ed28c70586ac0c47edad541b2",
     "src/settings-view.js": "a2c63300b0186ce6bcb2b787c9bc83185bf62b548bbac521113fa9c943729042",
-    "src/player-settings.js": "dc972e5f98ffe173d441c04ab4b7320f2baf45782caa372654689efa276688e4"
+    "src/player-settings.js": "5919dd56c80a90fbb05102df77d99ef01dceab0ecaffef14fe7e1bc7de39f6f7"
   },
   "liveSha256": "5bc8faa1a36f2a4ef49d1223919471a2ba7867acd5495ea09f6a7073ffdbe2c8",
   "liveFiles": {

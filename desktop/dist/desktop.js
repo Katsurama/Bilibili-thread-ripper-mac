@@ -4077,13 +4077,14 @@ globalThis.__BTR_DESKTOP_RELEASE__={"version":"2026.11.10.1-d1","adapterRevision
   let panel, unsubscribe, scheduled = false, opened = false;
   const style = document.createElement("style");
   style.textContent = `
-    #${id}{margin:0 0 16px;color:#fff;font-size:12px;text-align:left}
-    #${id} .btr-native-setting-group{margin:0 0 16px}
-    #${id} .btr-native-setting-title{margin:0 0 8px;color:#fff}
-    #${id} .bui-radio-group{display:flex!important;flex-wrap:wrap!important;gap:8px!important;margin:0!important}
-    #${id} .bui-radio-item{margin:0!important}
+    /* The client's own measures (its rows: title 16px + 4px, buttons 19px + 12px, 4px between buttons). */
+    #${id}{margin:0;color:#fff;font-size:12px;text-align:left}
+    #${id} .btr-native-setting-group{margin:0 0 12px}
+    #${id} .btr-native-setting-title{height:16px;line-height:16px;margin:0 0 4px;color:#fff}
+    #${id} .bui-radio-group{display:flex!important;flex-wrap:nowrap!important;gap:4px!important;margin:0!important}
+    #${id} .bui-radio-item{flex:1 1 0!important;min-width:0!important;margin:0!important}
     #${id} .btr-save-error{color:#ff8585;line-height:1.5}
-    #${id} summary{display:flex;justify-content:space-between;gap:12px;margin:0 0 16px;cursor:pointer;list-style:none}
+    #${id} summary{display:flex;justify-content:space-between;gap:12px;height:16px;line-height:16px;margin:0 0 12px;cursor:pointer;list-style:none}
     #${id} summary::-webkit-details-marker{display:none}
     #${id} summary span{color:hsla(0,0%,100%,.6)}#${id} summary span:after{content:" ▸"}#${id} details[open] summary span:after{content:" ▾"}
   `;
