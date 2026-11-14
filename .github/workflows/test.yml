@@ -11,3 +11,10 @@ jobs:
           node-version: 22
       - run: npm test
         working-directory: desktop
+      # The takeover in a real browser: the bundle users get, on a made-up client player.
+      - run: npm install --no-save --no-package-lock playwright-core
+        working-directory: desktop
+      - run: node test/browser.cjs
+        working-directory: desktop
+        env:
+          BTR_TEST_BROWSER: /Applications/Google Chrome.app/Contents/MacOS/Google Chrome

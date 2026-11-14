@@ -99,6 +99,44 @@ test("uninstall changes nothing when it cannot tell whether the client has BTR",
   fs.rmSync(client.dir, { recursive: true });
 });
 
+// What a new user gets: only the files committed to the repository (as `git clone` gives them),
+// installed into a made-up official client, then uninstalled. The client is a real, signed
+// bundle around a copy of /usr/bin/true, so codesign and the integrity record run for real.
+test("a fresh download installs into an official client and uninstalls back to it", { skip: process.platform !== "darwin" }, () => {
+  const os = require("node:os"), { execFileSync, execSync } = require("node:child_process");
+  const repo = path.resolve(__dirname, "../.."), dir = fs.mkdtempSync(path.join(os.tmpdir(), "btr-install-"));
+  const clone = path.join(dir, "btr-mac"), app = path.join(dir, "Applications/哔哩哔哩.app"), data = path.join(dir, "data");
+  fs.mkdirSync(clone);
+  execSync(`git -C "${repo}" archive HEAD | tar -x -C "${clone}"`);
+  const body = Buffer.from('"use strict";\n'), pkg = Buffer.from(JSON.stringify({ name: "bilibili", version: "1.20.0", main: "index.js" }));
+  const header = Buffer.from(JSON.stringify({ files: { "package.json": { size: pkg.length, offset: "0" }, "index.js": { size: body.length, offset: String(pkg.length) } } }));
+  const padded = Math.ceil((header.length + 4) / 4) * 4, prefix = Buffer.alloc(12 + padded);
+  prefix.writeUInt32LE(4, 0); prefix.writeUInt32LE(padded + 4, 4); prefix.writeUInt32LE(padded, 8); prefix.writeUInt32LE(header.length, 12); header.copy(prefix, 16);
+  const official = Buffer.concat([prefix, pkg, body]), asar = path.join(app, "Contents/Resources/app.asar");
+  fs.mkdirSync(path.join(app, "Contents/Resources"), { recursive: true }); fs.mkdirSync(path.join(app, "Contents/MacOS"));
+  fs.copyFileSync("/usr/bin/true", path.join(app, "Contents/MacOS/bilibili"));
+  fs.writeFileSync(path.join(app, "Contents/Info.plist"), '<?xml version="1.0" encoding="UTF-8"?>\n<plist version="1.0"><dict><key>CFBundleIdentifier</key><string>com.bilibili.bilibiliPC</string><key>CFBundleExecutable</key><string>bilibili</string><key>CFBundlePackageType</key><string>APPL</string><key>CFBundleShortVersionString</key><string>1.20.0</string><key>ElectronAsarIntegrity</key><dict><key>Resources/app.asar</key><dict><key>algorithm</key><string>SHA256</string><key>hash</key><string>0</string></dict></dict></dict></plist>\n');
+  fs.writeFileSync(asar, official);
+  execFileSync("codesign", ["--force", "--deep", "--sign", "-", app], { stdio: "pipe" });
+  const env = { ...process.env, BTR_APP: app, BTR_DATA: data, BTR_CLIENT_RESOURCE: path.join(dir, "resource") };
+  const run = (...args) => execFileSync("/bin/bash", [path.join(clone, "install-mac.sh"), ...args], { env, stdio: "pipe", encoding: "utf8" });
+  // --pulled: the files are already the ones under test; without it the script first pulls main from GitHub.
+  run("install", "--pulled");
+  const status = JSON.parse(run("status").split("\n")[0]).installed;
+  assert.equal(status.version, JSON.parse(fs.readFileSync(path.join(repo, "desktop/desktop.json"))).version);
+  assert.equal(status.macVersion, JSON.parse(fs.readFileSync(path.join(repo, "mac-version.json"))).version);
+  const patched = fs.readFileSync(asar);
+  assert.ok(patched.includes("native-range-transport.js") && patched.includes("btr-desktop:copy-text"), "the client carries the bundle and the main-process handlers");
+  execFileSync("codesign", ["--verify", "--deep", app], { stdio: "pipe" });
+  assert.equal(execFileSync("/usr/libexec/PlistBuddy", ["-c", "Print :ElectronAsarIntegrity:Resources/app.asar:hash", path.join(app, "Contents/Info.plist")], { encoding: "utf8" }).trim(),
+    execFileSync("python3", ["-I", path.join(clone, "btr_mac.py"), "header-hash", asar], { encoding: "utf8" }).trim(), "the integrity record matches the patched app.asar");
+  run("install", "--pulled"); // again, as an update does
+  run("uninstall");
+  assert.deepEqual(fs.readFileSync(asar), official);
+  assert.ok(!fs.existsSync(data), "backup and data removed");
+  fs.rmSync(dir, { recursive: true });
+});
+
 // The important-update dialog: maintain.cjs with a fake Electron whose dialog answers 稍后.
 function launch(manifest, installedMac, autoEnabled) {
   const os = require("node:os"), dir = fs.mkdtempSync(path.join(os.tmpdir(), "btr-critical-"));
