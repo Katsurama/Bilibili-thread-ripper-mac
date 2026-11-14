@@ -22,9 +22,15 @@ window.addEventListener("message", event => {
   if (event.source !== window || event.data?.channel !== channel || event.data.type !== "live-config" || typeof event.data.enabled !== "boolean") return;
   ipcRenderer.invoke("btr-desktop:live-config", event.data.enabled).catch(() => {});
 });
-// 复制诊断信息 (settings-view.js) falls back to the main process when the page may not write the clipboard.
+// 复制诊断信息 (player-settings.js) falls back to the main process when the page may not write the
+// clipboard. Only right after a real click in BTR's part of the player menu: a script in the
+// page must not be able to rewrite the clipboard by itself.
+let copyUntil = 0;
+document.addEventListener("click", event => { if (event.isTrusted && event.target.closest?.("#btr-desktop-player-settings")) copyUntil = Date.now() + 3000; }, true);
 window.addEventListener("message", async event => {
   if (event.source !== window || event.data?.channel !== channel || event.data.type !== "copy" || typeof event.data.text !== "string") return;
+  if (Date.now() > copyUntil) { window.postMessage({ channel, type: "copied", id: event.data.id, ok: false }, location.origin); return; }
+  copyUntil = 0;
   const ok = await ipcRenderer.invoke("btr-desktop:copy-text", event.data.text).catch(() => false);
   window.postMessage({ channel, type: "copied", id: event.data.id, ok: ok === true }, location.origin);
 });

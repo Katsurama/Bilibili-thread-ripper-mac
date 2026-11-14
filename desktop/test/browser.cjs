@@ -29,8 +29,6 @@ const server = http.createServer((req, res) => { res.setHeader("Content-Type", r
       if (route.request().url().includes("slow")) await new Promise(resolve => setTimeout(resolve, 150));
       await route.fulfill({ status: 206, headers: { "Content-Range": `bytes ${start}-${end}/8388608`, "Content-Length": String(bytes.length), "Access-Control-Allow-Origin": "*", "Access-Control-Expose-Headers": "Content-Range,Content-Length", "Content-Type": "video/mp4" }, body: bytes });
     });
-    // The client restores its cookies when it starts; a leftover one must not answer the guide.
-    await context.addCookies([{ name: "BTR.guideDone", value: "1", url: origin }]);
     await page.goto(origin);
     await context.grantPermissions(["clipboard-read", "clipboard-write"], { origin });
     const second = await context.newPage(); await second.goto(origin);

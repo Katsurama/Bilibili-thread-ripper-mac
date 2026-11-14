@@ -99,7 +99,7 @@ test("uninstall changes nothing when it cannot tell whether the client has BTR",
   fs.rmSync(client.dir, { recursive: true });
 });
 
-// What a new user gets: only the files committed to the repository (as `git clone` gives them),
+// What a new user gets: only the files git tracks (as `git clone` gives them), as they are now in the working copy,
 // installed into a made-up official client, then uninstalled. The client is a real, signed
 // bundle around a copy of /usr/bin/true, so codesign and the integrity record run for real.
 test("a fresh download installs into an official client and uninstalls back to it", { skip: process.platform !== "darwin" }, () => {
@@ -107,7 +107,7 @@ test("a fresh download installs into an official client and uninstalls back to i
   const repo = path.resolve(__dirname, "../.."), dir = fs.mkdtempSync(path.join(os.tmpdir(), "btr-install-"));
   const clone = path.join(dir, "btr-mac"), app = path.join(dir, "Applications/哔哩哔哩.app"), data = path.join(dir, "data");
   fs.mkdirSync(clone);
-  execSync(`git -C "${repo}" archive HEAD | tar -x -C "${clone}"`);
+  execSync(`git -C "${repo}" ls-files -z | (cd "${repo}" && xargs -0 tar -cf -) | tar -x -C "${clone}"`);
   const body = Buffer.from('"use strict";\n'), pkg = Buffer.from(JSON.stringify({ name: "bilibili", version: "1.20.0", main: "index.js" }));
   const header = Buffer.from(JSON.stringify({ files: { "package.json": { size: pkg.length, offset: "0" }, "index.js": { size: body.length, offset: String(pkg.length) } } }));
   const padded = Math.ceil((header.length + 4) / 4) * 4, prefix = Buffer.alloc(12 + padded);
@@ -178,4 +178,21 @@ test("an installed version below minVersion gets one dialog with the notice, eve
 test("an ordinary update, or a version already at minVersion, gets no dialog", { timeout: 10000 }, async () => {
   assert.equal((await launch({ schema: 1, version: "2026.10.22.7" }, "2026.10.22.6", true)).dialogs.length, 0);
   assert.equal((await launch({ schema: 1, version: "2026.10.22.8", minVersion: "2026.10.22.7" }, "2026.10.22.7", true)).dialogs.length, 0);
+});
+
+// preload.cjs with a made-up page and Electron: the clipboard fallback of 复制诊断信息.
+test("the main process writes the clipboard only right after a real click in BTR's player menu", async () => {
+  const vm = require("node:vm"), invoked = [], posted = [], listeners = { message: [], click: [] };
+  const source = fs.readFileSync(path.join(__dirname, "../../payload/preload.cjs"), "utf8").replace("__BTR_MAC_INFO__", "{}").replace("__BTR_BUNDLE__", '""');
+  const window = { addEventListener: (type, fn) => (listeners[type] ||= []).push(fn), postMessage: data => posted.push(data) };
+  const document = { addEventListener: (type, fn) => (listeners[type] ||= []).push(fn), documentElement: {}, head: { appendChild() {} }, getElementById: () => null, createElement: () => ({ remove() {} }) };
+  vm.runInNewContext(source, { window, document, location: { origin: "https://bilipc.bilibili.com", pathname: "/player.html" }, process: { isMainFrame: true }, Date, Promise,
+    MutationObserver: class { observe() {} disconnect() {} }, require: () => ({ ipcRenderer: { on() {}, invoke: async (name, text) => { invoked.push([name, text]); return true; } } }) });
+  const ask = async id => { for (const fn of listeners.message) fn({ source: window, data: { channel: "__BTR_DESKTOP_UPDATE__", type: "copy", id, text: "report" } }); await new Promise(resolve => setTimeout(resolve, 5)); };
+  const click = (isTrusted, inside) => { for (const fn of listeners.click) fn({ isTrusted, target: { closest: selector => inside && selector === "#btr-desktop-player-settings" ? {} : null } }); };
+  await ask(1); click(false, true); await ask(2); click(true, false); await ask(3);
+  assert.deepEqual(invoked, [], "a script alone, a scripted click, or a click elsewhere copies nothing");
+  click(true, true); await ask(4); await ask(5);
+  assert.deepEqual(invoked, [["btr-desktop:copy-text", "report"]], "one copy per real click");
+  assert.deepEqual(posted.filter(m => m.type === "copied").map(m => [m.id, m.ok]), [[1, false], [2, false], [3, false], [4, true], [5, false]]);
 });

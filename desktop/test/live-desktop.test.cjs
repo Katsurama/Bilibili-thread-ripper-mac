@@ -10,7 +10,7 @@ const BOOTSTRAP = fs.readFileSync(path.join(__dirname, "../../payload/bootstrap.
 // A small stand-in for the live player page: the quality menu, localStorage and postMessage.
 function livePage({ saved, href = "https://live.bilibili.com/blanc/1?liteVersion=true" } = {}) {
   const listeners = { message: [], storage: [] }, store = new Map(saved === undefined ? [] : [["BTR_Desktop.live.v1", saved]]);
-  const posted = [];
+  const posted = [], copied = [];
   const nodes = [];
   class Node {
     constructor(tag) { this.tagName = tag; this.children = []; this.parent = null; this.attrs = {}; this.classList = { set: new Set(), toggle: (c, on) => on ? this.classList.set.add(c) : this.classList.set.delete(c), contains: c => this.classList.set.has(c) }; this.style = {}; this.hidden = false; this.textContent = ""; this.listeners = {}; nodes.push(this); }
@@ -37,14 +37,15 @@ function livePage({ saved, href = "https://live.bilibili.com/blanc/1?liteVersion
     localStorage: { getItem: k => store.has(k) ? store.get(k) : null, setItem: (k, v) => store.set(k, String(v)) },
     addEventListener: (type, fn) => (listeners[type] ||= []).push(fn),
     postMessage(data) { posted.push(data); for (const fn of listeners.message || []) fn({ source: window, data }); },
-    fetch: async () => ({ ok: true }), AbortController, DOMException, Headers, Response, Request, performance: { now: () => 0 }
+    fetch: async () => ({ ok: true }), AbortController, DOMException, Headers, Response, Request, performance: { now: () => 0, timeOrigin: 0 },
+    navigator: { userAgent: "test", language: "zh-CN", clipboard: { writeText: async text => { copied.push(text); } } }, innerWidth: 800, innerHeight: 600
   };
   window.globalThis = window; window.window = window;
   vm.runInContext(LIVE, vm.createContext(window), { filename: "live.js" });
   const settings = () => posted.filter(m => m?.type === "settings").map(m => m.payload.liveEnabled);
   const row = nodes.find(n => n.classList.contains("btr-live-row"));
   const tag = nodes.find(n => n.classList.contains("btr-live-tag"));
-  return { window, store, settings, row, tag, panel, label, fireStorage: () => (listeners.storage || []).forEach(fn => fn({ key: "BTR_Desktop.live.v1" })) };
+  return { window, store, settings, row, tag, panel, label, copied, copy: nodes.find(n => n.classList.contains("btr-live-copy")), fireStorage: () => (listeners.storage || []).forEach(fn => fn({ key: "BTR_Desktop.live.v1" })) };
 }
 
 test("switched on in the settings, live acceleration starts on; the switch in the quality menu turns it off and is remembered", () => {
@@ -142,4 +143,15 @@ test("switched on, live.js goes to the live.bilibili.com frames, including the p
   contentsHandlers["dom-ready"]();
   await settle();
   assert.deepEqual(ran, [], "and new rooms get nothing");
+});
+
+test("复制诊断信息 in the live quality menu copies the live module's state as an English report", async () => {
+  const page = livePage();
+  assert.equal(page.panel.children[2], page.copy, "after the switch and its status line");
+  page.copy.click();
+  await new Promise(resolve => setTimeout(resolve, 20));
+  assert.equal(page.copy.textContent, "已复制");
+  assert.match(page.copied[0], /^BTR diagnostics \(format 1\)/);
+  assert.match(page.copied[0], /^== Live \(top\) ==\nstate +waiting$/m, "the live module's own state is in it");
+  assert.equal(/[^\x00-\x7f]/.test(page.copied[0]), false, "plain English text");
 });

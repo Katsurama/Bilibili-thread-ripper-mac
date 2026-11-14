@@ -1,7 +1,7 @@
 {
   "version": "2026.11.10.1-d1",
   "adapterRevision": 1,
-  "sha256": "35605b7a78e0e50830363d313d9081185f65a54e4c2c78b1ea2ce5717b871a1f",
+  "sha256": "706a09b5e5c637b71da7222e026f7200aa0e0da8c55d1ed4871b4051c30e925b",
   "files": {
     "shared/range-core.js": "57e8c5ee0f546f2577cb1b6e08b0d3eea2c6d06865f4207861eeb022e0acccca",
     "shared/cdn-resolver.js": "3187e0c714b5d583be24f186d38684ee8cf1df2c0668f29c2806d18d4eb7c92e",
@@ -9,17 +9,18 @@
     "shared/native-range-transport.js": "ebbb0565c70849614aabc5685d19864afecb23097d206896a525902b21b0f4d0",
     "shared/runtime-notices.js": "65e5ca1565b38aecc5379f127d7a372ea76148504fc94a7a26a7eaa0ad86e829",
     "shared/diagnostic-report.js": "132c66f5680fc1c6ec4da2263349e1a626e40590efee6733e3d0fbdcd52656f9",
-    "src/settings.js": "7861e03c2c07ba21e3c5d3cdd86a4bbfa0bd2561491d50ebe966962304f34094",
+    "src/settings.js": "175974c929109fff3bc8b684100e7ad9e6a168713bac6918636e8bc59b5f4f94",
     "src/page-hook.js": "27e09c8f98e783373e9f96d7b4d239f3af0c3498076ccfb89f0f360c03b0fe4d",
     "src/updates.js": "4be36c1110458d8edd04d2429b614f6f0190c23ed28c70586ac0c47edad541b2",
     "src/settings-view.js": "a2c63300b0186ce6bcb2b787c9bc83185bf62b548bbac521113fa9c943729042",
     "src/player-settings.js": "5919dd56c80a90fbb05102df77d99ef01dceab0ecaffef14fe7e1bc7de39f6f7"
   },
-  "liveSha256": "5bc8faa1a36f2a4ef49d1223919471a2ba7867acd5495ea09f6a7073ffdbe2c8",
+  "liveSha256": "cf92121ab66d0a9c0eed2b264d20dba54cc609e840a44e91550a0a5bef1d628d",
   "liveFiles": {
     "shared/range-core.js": "57e8c5ee0f546f2577cb1b6e08b0d3eea2c6d06865f4207861eeb022e0acccca",
     "shared/live-core.js": "a1dd9f6ce12fa44821f376c3e9d7439eb2bfad35f283afe38fd56e1822af71bb",
     "shared/live-hook.js": "08f446ab136a2670f97be20565d6d9b24cd0b8945d68fa18f38952bd68bcfba8",
-    "src/live-ui.js": "00d94e001962aa5c8f3bd2cd1de922da70b0ed016937cfadc21a359e803a3cf4"
+    "shared/diagnostic-report.js": "132c66f5680fc1c6ec4da2263349e1a626e40590efee6733e3d0fbdcd52656f9",
+    "src/live-ui.js": "1b02853cbfb4b8776f9f4256c7afd9c57956b38e1aff6b101920abcaa626e22c"
   }
 }

@@ -7,7 +7,7 @@ const own = ["settings.js", "page-hook.js", "updates.js", "settings-view.js", "p
 const files = [...shared.map(x => `shared/${x}`), ...own.map(x => `src/${x}`)];
 // The live player runs in live.bilibili.com frames, apart from the client pages: bootstrap.cjs
 // puts this second bundle into them. live-core.js and live-hook.js are the browser version's.
-const liveFiles = ["shared/range-core.js", "shared/live-core.js", "shared/live-hook.js", "src/live-ui.js"];
+const liveFiles = ["shared/range-core.js", "shared/live-core.js", "shared/live-hook.js", "shared/diagnostic-report.js", "src/live-ui.js"];
 
 // The contents of dist/, by file name. The test compares them with the committed dist/.
 function build() {

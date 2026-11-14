@@ -48,7 +48,9 @@
     .btr-live-switch{position:relative;flex:none;width:28px;height:16px;border-radius:8px;background:rgba(255,255,255,.3);transition:background .15s}
     .btr-live-switch::after{content:"";position:absolute;top:2px;left:2px;width:12px;height:12px;border-radius:50%;background:#fff;transition:left .15s}
     .btr-live-row[aria-checked=true] .btr-live-switch{background:#ff6699}.btr-live-row[aria-checked=true] .btr-live-switch::after{left:14px}
-    .btr-live-status{padding:0 8px 6px 12px;margin-bottom:4px;border-bottom:1px solid rgba(255,255,255,.12);font-size:11px;line-height:16px;color:rgba(255,255,255,.6)}
+    .btr-live-status{padding:0 8px 2px 12px;font-size:11px;line-height:16px;color:rgba(255,255,255,.6)}
+    .btr-live-copy{padding:0 8px 6px 12px;margin-bottom:4px;border-bottom:1px solid rgba(255,255,255,.12);font-size:11px;line-height:16px;color:rgba(255,255,255,.6);cursor:pointer;user-select:none}
+    .btr-live-copy:hover{color:#fff}
     .btr-live-tag{display:inline-block;margin-right:6px;padding:0 4px;border-radius:3px;background:rgba(255,255,255,.25);color:#fff;font-size:10px;line-height:14px;vertical-align:1px}
     .btr-live-tag.btr-on{background:#ff6699}`;
   const row = doc.createElement("div");
@@ -56,6 +58,31 @@
   row.innerHTML = `<span>BTR 直播加速</span><span class="btr-live-switch"></span>`;
   const status = doc.createElement("div"); status.className = "btr-live-status";
   const tag = doc.createElement("span"); tag.className = "btr-live-tag"; tag.textContent = "BTR";
+  // 复制诊断信息 for this live room: what live-hook.js knows (state, nodes, its last events), laid
+  // out by shared/diagnostic-report.js as English text for an issue. No stream address.
+  const copy = doc.createElement("div"); copy.className = "btr-live-copy"; copy.textContent = "复制诊断信息";
+  function diagnostics() {
+    const live = root.__biliThreadRipperLiveDebug, perf = root.performance;
+    return String(root.__BTR_DIAGNOSTIC_REPORT__.render({
+      capturedAt: Date.now(), timeOrigin: perf.timeOrigin, now: perf.now(),
+      btr: { version: live.getStats().version, channel: "stable", otherBuild: "", scriptManager: "", host: "desktop" },
+      env: { userAgent: root.navigator.userAgent, language: root.navigator.language, viewport: `${root.innerWidth}x${root.innerHeight}`, page: `${root.location.origin}${root.location.pathname}` },
+      settings: { enabled: true, liveEnabled: allowed && enabled }, site: null, video: null, stats: null, autoThreads: null, media: [],
+      live: [{ frame: "top", timeOriginDelta: 0, stats: live.getStats(), context: live.getContext?.() ?? null, events: live.getEvents?.() ?? [] }], readErrors: []
+    }));
+  }
+  // The player sits in a frame, where the clipboard API may be refused: then the old way.
+  const copyText = text => root.navigator.clipboard.writeText(text).catch(() => {
+    const area = doc.createElement("textarea"); area.value = text; area.style.cssText = "position:fixed;opacity:0";
+    doc.documentElement.append(area); area.select();
+    const done = doc.execCommand("copy"); area.remove();
+    if (!done) throw Error("copy refused");
+  });
+  copy.addEventListener("click", event => {
+    event.stopPropagation();
+    Promise.resolve().then(() => copyText(diagnostics())).then(() => "已复制", () => "复制失败")
+      .then(text => { copy.textContent = text; setTimeout(() => { copy.textContent = "复制诊断信息"; }, 2000); });
+  });
   // The menu belongs to the player; a click here must not also pick a quality or close it.
   row.addEventListener("click", event => { event.stopPropagation(); setEnabled(!enabled); });
   row.addEventListener("keydown", event => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); setEnabled(!enabled); } });
@@ -75,10 +102,10 @@
   }
   // The player draws its controls late and redraws them; put the pieces back whenever they go.
   function mount() {
-    if (!allowed) { row.remove(); status.remove(); tag.remove(); return; }
+    if (!allowed) { row.remove(); status.remove(); copy.remove(); tag.remove(); return; }
     if (!style.isConnected && (doc.head || doc.documentElement)) (doc.head || doc.documentElement).append(style);
     const panel = doc.querySelector(".quality-wrap .panel");
-    if (panel && panel.firstChild !== row) panel.prepend(row, status);
+    if (panel && panel.firstChild !== row) panel.prepend(row, status, copy);
     const label = doc.querySelector(".quality-wrap .selected-qn");
     if (label && label.firstChild !== tag) label.prepend(tag);
   }

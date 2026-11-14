@@ -12,7 +12,7 @@
     // 自动线程数 is on unless switched off, as in the browser version; concurrency is then only
     // the manual choice, used again when it is switched off.
     // The client only has the browser version's compatibility mode (src/page-hook.js).
-    return { enabled: s.enabled, takeover: "compat", liveEnabled: s.liveEnabled, autoConcurrency: value?.autoConcurrency !== false, concurrency: s.concurrency, mode: s.mode, customHosts: s.customHosts, theme: s.theme, floatingButton: s.floatingButton, floatingButtonLeft: s.floatingButtonLeft, floatingButtonTop: s.floatingButtonTop, guideDone: s.guideDone, autoCheckUpdates: value?.autoCheckUpdates !== false, revision: REVISION };
+    return { enabled: s.enabled, takeover: "compat", liveEnabled: s.liveEnabled, autoConcurrency: value?.autoConcurrency !== false, concurrency: s.concurrency, mode: s.mode, customHosts: s.customHosts, autoCheckUpdates: value?.autoCheckUpdates !== false, revision: REVISION };
   };
   let current;
   // macOS: the main process injects the live player code only while 直播加速（实验性） is on, so
