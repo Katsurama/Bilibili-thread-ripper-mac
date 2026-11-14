@@ -18,7 +18,7 @@
 
 [▶ 在 B 站看介绍视频](https://www.bilibili.com/video/BV1chxT6xEr7)（2 分 50 秒）
 
-<sub>已在 macOS 27.2（Apple M4）、官方客户端 **1.19.0**、BTR Desktop **2026.11.10.1-d1** 实测</sub>
+<sub>已在 macOS 27.2（Apple M4）、官方客户端 **1.20.0**、BTR Desktop **2026.11.10.1-d1** 实测</sub>
 
 </div>
 
