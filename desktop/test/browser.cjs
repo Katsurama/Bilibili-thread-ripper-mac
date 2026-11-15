@@ -33,16 +33,22 @@ const server = http.createServer((req, res) => { res.setHeader("Content-Type", r
     await context.grantPermissions(["clipboard-read", "clipboard-write"], { origin });
     const second = await context.newPage(); await second.goto(origin);
     await page.bringToFront();
-    await page.evaluate(() => {
+    // The client's menu as BTR finds it: its own 视频比例 row (the rows BTR copies), then 其他设置.
+    const clientMenu = '<div class="bpx-player-ctrl-setting-aspect"><div class="bpx-player-ctrl-setting-aspect-title" data-i18n="videoAspectRatio">视频比例</div><div class="bpx-player-ctrl-setting-aspect-content bui bui-radio bui-dark"><div class="bui-area"><div class="bui-radio-wrap bui-radio-button"><div class="bui-radio-group" style="margin: 0 -4px;"><label class="bui-radio-item" style="margin: 0 4px;"><input type="radio" class="bui-radio-input" value="0:0" name="bui-radio2" checked><span class="bui-radio-label">自动</span></label><label class="bui-radio-item" style="margin: 0 4px;"><input type="radio" class="bui-radio-input" value="4:3" name="bui-radio2"><span class="bui-radio-label">4:3</span></label></div></div></div></div></div><div class="bpx-player-ctrl-setting-others">其他设置</div>';
+    await page.evaluate(html => {
       const menu = document.createElement("div"); menu.className = "bpx-player-ctrl-setting-menu-right";
-      menu.innerHTML = '<div class="bpx-player-ctrl-setting-others">其他设置</div>'; document.body.append(menu);
-    });
+      menu.innerHTML = html; document.body.append(menu);
+    }, clientMenu);
     await page.locator("#btr-desktop-player-settings").waitFor();
     // macOS: one folded line in the menu, showing the current choices; they open under it.
     assert.equal(await page.locator("#btr-desktop-player-settings .bui-radio-group").first().isVisible(), false);
     assert.match(await page.locator("#btr-desktop-player-settings summary").textContent(), /^线程撕裂者.*CDN · 自动线程$/);
     await page.locator("#btr-desktop-player-settings summary").click();
     assert.equal(await page.locator("#btr-desktop-player-settings + .bpx-player-ctrl-setting-others").count(), 1);
+    // The rows are the client's own: its markup and spacing, BTR's titles and choices, the client's row untouched.
+    assert.deepEqual(await page.evaluate(() => [...document.querySelectorAll("#btr-desktop-player-settings .bpx-player-ctrl-setting-aspect")].map(row => [row.querySelector(".bpx-player-ctrl-setting-aspect-title").textContent, row.querySelector("[data-i18n]"), row.querySelector(".bui-radio-group").getAttribute("style"), row.querySelector(".bui-radio-item").getAttribute("style")])),
+      [["CDN", null, "margin: 0 -4px;", "margin: 0 4px;"], ["并发线程", null, "margin: 0 -4px;", "margin: 0 4px;"], ["诊断", null, "margin: 0 -4px;", "margin: 0 4px;"]]);
+    assert.deepEqual(await page.evaluate(() => [...document.querySelectorAll('[name="bui-radio2"]')].map(input => input.checked)), [true, false]);
     // The player menu shows 自动 first and checked; a number switches it off.
     assert.equal(await page.locator('[name="btr-desktop-player-concurrency"]').first().getAttribute("value"), "auto");
     assert.equal(await page.locator('[name="btr-desktop-player-concurrency"][value="auto"]').isChecked(), true);
@@ -55,7 +61,7 @@ const server = http.createServer((req, res) => { res.setHeader("Content-Type", r
     await second.waitForFunction(() => __BTR_DESKTOP__.getSettings().autoConcurrency === false);
     await page.locator('[name="btr-desktop-player-mode"][value="overseas"]').check();
     await second.waitForFunction(() => __BTR_DESKTOP__.getSettings().mode === "overseas");
-    await page.evaluate(() => { const old=document.querySelector('.bpx-player-ctrl-setting-menu-right'); const next=old.cloneNode(false); next.innerHTML='<div class="bpx-player-ctrl-setting-others">其他设置</div>'; old.replaceWith(next); });
+    await page.evaluate(html => { const old=document.querySelector('.bpx-player-ctrl-setting-menu-right'); const next=old.cloneNode(false); next.innerHTML=html; old.replaceWith(next); }, clientMenu);
     await page.locator('[name="btr-desktop-player-concurrency"][value="64"]').waitFor();
     assert.equal(await page.locator('[name="btr-desktop-player-concurrency"][value="64"]').isChecked(), true);
     assert.equal(await page.locator('[name="btr-desktop-player-mode"][value="overseas"]').isChecked(), true);

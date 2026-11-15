@@ -5,33 +5,31 @@
   let panel, unsubscribe, scheduled = false, opened = false;
   const style = document.createElement("style");
   style.textContent = `
-    /* The client's own measures (its rows: title 16px + 4px, buttons 19px + 12px, 4px between buttons). */
     #${id}{margin:0;color:#fff;font-size:12px;text-align:left}
-    #${id} .btr-native-setting-group{margin:0 0 12px}
-    #${id} .btr-native-setting-title{height:16px;line-height:16px;margin:0 0 4px;color:#fff}
-    #${id} .bui-radio-group{display:flex!important;flex-wrap:nowrap!important;gap:4px!important;margin:0!important}
-    #${id} .bui-radio-item{flex:1 1 0!important;min-width:0!important;margin:0!important}
     #${id} .btr-save-error{color:#ff8585;line-height:1.5}
     #${id} summary{display:flex;justify-content:space-between;gap:12px;height:16px;line-height:16px;margin:0 0 12px;cursor:pointer;list-style:none}
     #${id} summary::-webkit-details-marker{display:none}
     #${id} summary span{color:hsla(0,0%,100%,.6)}#${id} summary span:after{content:" ▸"}#${id} details[open] summary span:after{content:" ▾"}
   `;
   (document.head || document.documentElement).append(style);
-  // Keep the official player's own radio styling and secondary settings menu.
-  function group(title, setting, options) {
-    const section = document.createElement("div"); section.className = "btr-native-setting-group";
-    const heading = document.createElement("div"); heading.className = "btr-native-setting-title"; heading.textContent = title;
-    const content = document.createElement("div"); content.className = "bui bui-radio bui-dark";
-    content.innerHTML = '<div class="bui-area"><div class="bui-radio-wrap bui-radio-button"><div class="bui-radio-group"></div></div></div>';
-    for (const [value, text] of options) {
-      const label = document.createElement("label"); label.className = "bui-radio-item";
-      const input = document.createElement("input"); input.type = "radio"; input.className = "bui-radio-input";
+  // Each BTR row is a copy of the client's own 视频比例 row with BTR's choices in it, so it looks
+  // like the client's rows whatever the client changes. No such row: BTR adds nothing to the menu.
+  const TEMPLATE = ":scope > .bpx-player-ctrl-setting-aspect";
+  const caption = item => item.querySelector(".bui-radio-text") || item.querySelector(".bui-radio-label");
+  function group(template, title, setting, options) {
+    const section = template.cloneNode(true);
+    // The client fills elements marked for translation with its own words.
+    for (const marked of [section, ...section.querySelectorAll("[data-i18n]")]) marked.removeAttribute("data-i18n");
+    (section.querySelector("[class*=title]") || section.firstElementChild).textContent = title;
+    const list = section.querySelector(".bui-radio-group"), sample = list.querySelector(".bui-radio-item");
+    list.replaceChildren(...options.map(([value, text]) => {
+      const item = sample.cloneNode(true), input = item.querySelector("input");
+      input.removeAttribute("checked"); input.checked = false;
       input.name = `btr-desktop-player-${setting}`; input.dataset.btrSetting = setting; input.value = String(value);
-      const body = document.createElement("span"); body.className = "bui-radio-label";
-      const caption = document.createElement("span"); caption.className = "bui-radio-text"; caption.textContent = text;
-      body.append(caption); label.append(input, body); content.querySelector(".bui-radio-group").append(label);
-    }
-    section.append(heading, content); return section;
+      caption(item).textContent = text;
+      return item;
+    }));
+    return section;
   }
   // 复制诊断信息, as the browser version's settings panel does it: gather what each part of BTR
   // knows in this player window and let shared/diagnostic-report.js lay it out as English text for
@@ -66,8 +64,8 @@
   }));
   function mount() {
     scheduled = false;
-    const target = document.querySelector(".bpx-player-ctrl-setting-menu-right");
-    if (!target) { if (panel && !panel.isConnected) { unsubscribe?.(); unsubscribe = null; panel = null; } return; }
+    const target = document.querySelector(".bpx-player-ctrl-setting-menu-right"), template = target?.querySelector(TEMPLATE);
+    if (!target || !template?.querySelector(".bui-radio-group .bui-radio-item input")) { if (panel && !panel.isConnected) { unsubscribe?.(); unsubscribe = null; panel = null; } return; }
     if (panel?.parentElement === target) return;
     unsubscribe?.(); panel?.remove();
     panel = document.createElement("div"); panel.id = id;
@@ -79,10 +77,10 @@
     const error = document.createElement("div"); error.className = "btr-save-error"; error.setAttribute("role", "status");
     fold.append(
       summary,
-      group("CDN", "mode", [["mainland", "大陆 CDN"], ["overseas", "海外 CDN"], ["custom", "自定义"]]),
-      group("并发线程", "concurrency", [["auto", "自动"], ...threads.map(value => [value, String(value)])]),
+      group(template, "CDN", "mode", [["mainland", "大陆 CDN"], ["overseas", "海外 CDN"], ["custom", "自定义"]]),
+      group(template, "并发线程", "concurrency", [["auto", "自动"], ...threads.map(value => [value, String(value)])]),
       // A button in the look of the client's own choices; it never stays picked.
-      group("诊断", "diagnostics", [["copy", "复制诊断信息"]]),
+      group(template, "诊断", "diagnostics", [["copy", "复制诊断信息"]]),
       error
     );
     panel.append(fold);
@@ -91,8 +89,8 @@
       const setting = input.dataset.btrSetting;
       if (setting === "diagnostics") {
         input.checked = false;
-        const caption = input.parentElement.querySelector(".bui-radio-text");
-        copyText(diagnostics()).then(() => "已复制", () => "复制失败").then(text => { caption.textContent = text; setTimeout(() => { caption.textContent = "复制诊断信息"; }, 2000); });
+        const text = caption(input.closest(".bui-radio-item"));
+        copyText(diagnostics()).then(() => "已复制", () => "复制失败").then(result => { text.textContent = result; setTimeout(() => { text.textContent = "复制诊断信息"; }, 2000); });
         return;
       }
       if (setting !== "mode" && setting !== "concurrency") return;
