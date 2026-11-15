@@ -57,16 +57,33 @@ test("updating downloads from the public address, so no SSH key is asked for, an
 });
 
 // install-mac.sh uninstall against a made-up client: it replaces a whole application, so it is run for real.
+// An official client's app.asar: package.json and an index.js, nothing else.
+function officialAsar(version) {
+  const body = Buffer.from('"use strict";\n'), pkg = Buffer.from(JSON.stringify({ name: "bilibili", version, main: "index.js" }));
+  const header = Buffer.from(JSON.stringify({ files: { "package.json": { size: pkg.length, offset: "0" }, "index.js": { size: body.length, offset: String(pkg.length) } } }));
+  const padded = Math.ceil((header.length + 4) / 4) * 4, prefix = Buffer.alloc(12 + padded);
+  prefix.writeUInt32LE(4, 0); prefix.writeUInt32LE(padded + 4, 4); prefix.writeUInt32LE(padded, 8); prefix.writeUInt32LE(header.length, 12); header.copy(prefix, 16);
+  return Buffer.concat([prefix, pkg, body]);
+}
+
+// A real, signed bundle around a copy of /usr/bin/true, so codesign and the integrity record run for real.
+function signedClient(app, version) {
+  const { execFileSync } = require("node:child_process");
+  const official = officialAsar(version), asar = path.join(app, "Contents/Resources/app.asar");
+  fs.mkdirSync(path.join(app, "Contents/Resources"), { recursive: true }); fs.mkdirSync(path.join(app, "Contents/MacOS"));
+  fs.copyFileSync("/usr/bin/true", path.join(app, "Contents/MacOS/bilibili"));
+  fs.writeFileSync(path.join(app, "Contents/Info.plist"), `<?xml version="1.0" encoding="UTF-8"?>\n<plist version="1.0"><dict><key>CFBundleIdentifier</key><string>com.bilibili.bilibiliPC</string><key>CFBundleExecutable</key><string>bilibili</string><key>CFBundlePackageType</key><string>APPL</string><key>CFBundleShortVersionString</key><string>${version}</string><key>ElectronAsarIntegrity</key><dict><key>Resources/app.asar</key><dict><key>algorithm</key><string>SHA256</string><key>hash</key><string>0</string></dict></dict></dict></plist>\n`);
+  fs.writeFileSync(asar, official);
+  execFileSync("codesign", ["--force", "--deep", "--sign", "-", app], { stdio: "pipe" });
+  return { official, asar };
+}
+
 // macOS only: the script uses PlistBuddy, ditto and xattr.
 function fakeClient() {
   const os = require("node:os"), { execFileSync } = require("node:child_process");
   const repo = path.resolve(__dirname, "../.."), dir = fs.mkdtempSync(path.join(os.tmpdir(), "btr-uninstall-"));
   const app = path.join(dir, "Applications/哔哩哔哩.app"), data = path.join(dir, "data"), backup = path.join(data, "backup/哔哩哔哩.app");
-  const body = Buffer.from('"use strict";\n'), pkg = Buffer.from(JSON.stringify({ name: "bilibili", version: "1.17.3", main: "index.js" }));
-  const header = Buffer.from(JSON.stringify({ files: { "package.json": { size: pkg.length, offset: "0" }, "index.js": { size: body.length, offset: String(pkg.length) } } }));
-  const padded = Math.ceil((header.length + 4) / 4) * 4, prefix = Buffer.alloc(12 + padded);
-  prefix.writeUInt32LE(4, 0); prefix.writeUInt32LE(padded + 4, 4); prefix.writeUInt32LE(padded, 8); prefix.writeUInt32LE(header.length, 12); header.copy(prefix, 16);
-  const official = Buffer.concat([prefix, pkg, body]);
+  const official = officialAsar("1.17.3");
   for (const root of [app, backup]) {
     fs.mkdirSync(path.join(root, "Contents/Resources"), { recursive: true }); fs.mkdirSync(path.join(root, "Contents/MacOS"));
     fs.writeFileSync(path.join(root, "Contents/Info.plist"), '<?xml version="1.0" encoding="UTF-8"?>\n<plist version="1.0"><dict><key>CFBundleIdentifier</key><string>com.bilibili.bilibiliPC</string><key>CFBundleShortVersionString</key><string>1.17.3</string></dict></plist>\n');
@@ -100,24 +117,14 @@ test("uninstall changes nothing when it cannot tell whether the client has BTR",
 });
 
 // What a new user gets: only the files git tracks (as `git clone` gives them), as they are now in the working copy,
-// installed into a made-up official client, then uninstalled. The client is a real, signed
-// bundle around a copy of /usr/bin/true, so codesign and the integrity record run for real.
+// installed into a made-up official client (signedClient), then uninstalled.
 test("a fresh download installs into an official client and uninstalls back to it", { skip: process.platform !== "darwin" }, () => {
   const os = require("node:os"), { execFileSync, execSync } = require("node:child_process");
   const repo = path.resolve(__dirname, "../.."), dir = fs.mkdtempSync(path.join(os.tmpdir(), "btr-install-"));
   const clone = path.join(dir, "btr-mac"), app = path.join(dir, "Applications/哔哩哔哩.app"), data = path.join(dir, "data");
   fs.mkdirSync(clone);
   execSync(`git -C "${repo}" ls-files -z | (cd "${repo}" && xargs -0 tar -cf -) | tar -x -C "${clone}"`);
-  const body = Buffer.from('"use strict";\n'), pkg = Buffer.from(JSON.stringify({ name: "bilibili", version: "1.20.0", main: "index.js" }));
-  const header = Buffer.from(JSON.stringify({ files: { "package.json": { size: pkg.length, offset: "0" }, "index.js": { size: body.length, offset: String(pkg.length) } } }));
-  const padded = Math.ceil((header.length + 4) / 4) * 4, prefix = Buffer.alloc(12 + padded);
-  prefix.writeUInt32LE(4, 0); prefix.writeUInt32LE(padded + 4, 4); prefix.writeUInt32LE(padded, 8); prefix.writeUInt32LE(header.length, 12); header.copy(prefix, 16);
-  const official = Buffer.concat([prefix, pkg, body]), asar = path.join(app, "Contents/Resources/app.asar");
-  fs.mkdirSync(path.join(app, "Contents/Resources"), { recursive: true }); fs.mkdirSync(path.join(app, "Contents/MacOS"));
-  fs.copyFileSync("/usr/bin/true", path.join(app, "Contents/MacOS/bilibili"));
-  fs.writeFileSync(path.join(app, "Contents/Info.plist"), '<?xml version="1.0" encoding="UTF-8"?>\n<plist version="1.0"><dict><key>CFBundleIdentifier</key><string>com.bilibili.bilibiliPC</string><key>CFBundleExecutable</key><string>bilibili</string><key>CFBundlePackageType</key><string>APPL</string><key>CFBundleShortVersionString</key><string>1.20.0</string><key>ElectronAsarIntegrity</key><dict><key>Resources/app.asar</key><dict><key>algorithm</key><string>SHA256</string><key>hash</key><string>0</string></dict></dict></dict></plist>\n');
-  fs.writeFileSync(asar, official);
-  execFileSync("codesign", ["--force", "--deep", "--sign", "-", app], { stdio: "pipe" });
+  const { official, asar } = signedClient(app, "1.20.0");
   const env = { ...process.env, BTR_APP: app, BTR_DATA: data, BTR_CLIENT_RESOURCE: path.join(dir, "resource") };
   const run = (...args) => execFileSync("/bin/bash", [path.join(clone, "install-mac.sh"), ...args], { env, stdio: "pipe", encoding: "utf8" });
   // --pulled: the files are already the ones under test; without it the script first pulls main from GitHub.
@@ -134,6 +141,48 @@ test("a fresh download installs into an official client and uninstalls back to i
   run("uninstall");
   assert.deepEqual(fs.readFileSync(asar), official);
   assert.ok(!fs.existsSync(data), "backup and data removed");
+  fs.rmSync(dir, { recursive: true });
+});
+
+// The two places that delete: an old backup once the official client has moved on, and BTR copies
+// in the client's own cache on uninstall. A wrong answer from asar_installed must stop them.
+test("a newer official client replaces the old backup; BTR copies in the client cache are put back on uninstall", { skip: process.platform !== "darwin" }, () => {
+  const os = require("node:os"), { execFileSync } = require("node:child_process");
+  const repo = path.resolve(__dirname, "../.."), dir = fs.mkdtempSync(path.join(os.tmpdir(), "btr-backup-"));
+  const app = path.join(dir, "Applications/哔哩哔哩.app"), data = path.join(dir, "data"), resource = path.join(dir, "resource");
+  const backup = path.join(data, "backup/哔哩哔哩.app"), stale = path.join(dir, "stale.app");
+  const plistVersion = root => execFileSync("/usr/libexec/PlistBuddy", ["-c", "Print CFBundleShortVersionString", path.join(root, "Contents/Info.plist")], { encoding: "utf8" }).trim();
+  const oldBackup = root => {
+    fs.mkdirSync(path.join(root, "Contents/Resources"), { recursive: true });
+    fs.writeFileSync(path.join(root, "Contents/Info.plist"), '<?xml version="1.0" encoding="UTF-8"?>\n<plist version="1.0"><dict><key>CFBundleShortVersionString</key><string>1.17.3</string></dict></plist>\n');
+    fs.writeFileSync(path.join(root, "Contents/Resources/app.asar"), officialAsar("1.17.3"));
+  };
+  const { official, asar } = signedClient(app, "1.20.0");
+  oldBackup(backup); fs.writeFileSync(path.join(data, ".btr-mac-data"), "");
+  const env = { ...process.env, BTR_APP: app, BTR_DATA: data, BTR_CLIENT_RESOURCE: resource };
+  const run = (...args) => execFileSync("/bin/bash", [path.join(repo, "install-mac.sh"), ...args], { env, stdio: "pipe", encoding: "utf8" });
+
+  run("install", "--pulled");
+  assert.equal(plistVersion(backup), "1.20.0", "the 1.17.3 backup was replaced");
+  assert.deepEqual(fs.readFileSync(path.join(backup, "Contents/Resources/app.asar")), official, "by the official 1.20.0 client, not a patched one");
+
+  // The client has BTR and the backup is of another version: nothing official is left to back up.
+  fs.renameSync(backup, path.join(dir, "kept.app")); oldBackup(backup);
+  assert.throws(() => run("install", "--pulled"), error => /已含 BTR/.test(error.stderr));
+  assert.equal(plistVersion(backup), "1.17.3", "the backup is kept");
+  fs.rmSync(backup, { recursive: true }); fs.renameSync(path.join(dir, "kept.app"), backup);
+
+  // The client cache: a BTR copy of this version, one of an older version, and an official copy.
+  fs.mkdirSync(resource);
+  fs.copyFileSync(asar, path.join(resource, "same.asar"));
+  oldBackup(stale);
+  execFileSync("python3", ["-I", path.join(repo, "btr_mac.py"), "patch", path.join(stale, "Contents/Resources/app.asar"), path.join(repo, "desktop/dist/desktop.js"), path.join(resource, "older.asar"), repo]);
+  fs.writeFileSync(path.join(resource, "official.asar"), officialAsar("1.17.3"));
+  run("uninstall");
+  assert.deepEqual(fs.readFileSync(asar), official);
+  assert.deepEqual(fs.readFileSync(path.join(resource, "same.asar")), official, "same version: the official app.asar");
+  assert.ok(!fs.existsSync(path.join(resource, "older.asar")), "other version: removed, the client fetches it again");
+  assert.deepEqual(fs.readFileSync(path.join(resource, "official.asar")), officialAsar("1.17.3"), "copies without BTR are left alone");
   fs.rmSync(dir, { recursive: true });
 });
 

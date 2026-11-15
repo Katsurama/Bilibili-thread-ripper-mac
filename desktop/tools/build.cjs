@@ -1,6 +1,5 @@
 "use strict";
-const fs = require("node:fs"), path = require("node:path"), crypto = require("node:crypto");
-const sha = bytes => crypto.createHash("sha256").update(bytes).digest("hex");
+const fs = require("node:fs"), path = require("node:path");
 const root = path.resolve(__dirname, "..");
 const shared = ["range-core.js", "cdn-resolver.js", "idm-downloader.js", "native-range-transport.js", "runtime-notices.js", "diagnostic-report.js"];
 const own = ["settings.js", "page-hook.js", "updates.js", "settings-view.js", "player-settings.js"];
@@ -21,9 +20,7 @@ function build() {
   // version, whose MIT license must travel with them.
   const webLicense = fs.readFileSync(path.join(root, "LICENSE-Bilibili-thread-ripper"), "utf8").trim().replace(/\*\//g, "* /");
   const live = `/*! live-core.js and live-hook.js: Bilibili 线程撕裂者, https://github.com/MrTangLuyao/Bilibili-thread-ripper\n\n${webLicense}\n*/\n(function () {\nif (globalThis.__BTR_LIVE_BUNDLE__) return;\nObject.defineProperty(globalThis, "__BTR_LIVE_BUNDLE__", { value: ${JSON.stringify(config.version)} });\n${join(liveFiles).split("__BTR_VERSION__").join(config.version)}\n})();\n`;
-  const hashes = list => Object.fromEntries(list.map(file => [file, sha(fs.readFileSync(path.join(root, file)))]));
-  const payload = JSON.stringify({ version: config.version, adapterRevision: config.adapterRevision, sha256: sha(bundle), files: hashes(files), liveSha256: sha(live), liveFiles: hashes(liveFiles) }, null, 2);
-  return { config, outputs: { "desktop.js": bundle, "live.js": live, "payload.json": payload } };
+  return { config, outputs: { "desktop.js": bundle, "live.js": live } };
 }
 
 if (require.main === module) {

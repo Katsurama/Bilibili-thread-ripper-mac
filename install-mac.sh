@@ -7,7 +7,7 @@
 # 客户端设置页里的“安装更新 / 卸载 BTR”会以 --from-app <客户端进程号> 在后台调用本脚本：
 # 等客户端退出后，在“终端”里运行同一个操作（输出同时记到 ~/Library/Application Support/BTR-Mac/maintain.log），
 # 成功后重新打开客户端，失败时终端窗口停留显示错误。
-# 环境变量：BTR_APP=客户端路径  BTR_REPO=本地 BTR Desktop 仓库（用它的 dist/desktop.js，默认用本仓库 desktop/dist 里的）
+# 环境变量：BTR_APP=客户端路径
 set -euo pipefail
 
 # 找客户端：BTR_APP 指定的路径 → 两个“应用程序”文件夹里的 哔哩哔哩.app → Spotlight 按 bundle id 找。
@@ -69,9 +69,7 @@ if [ -n "$FROM_APP" ]; then
     printf '#!/bin/bash\n'
     # 终端里是全新的环境，把客户端路径和用户指定的设置带过去。
     printf 'export BTR_APP=%q\n' "$APP"
-    for name in BTR_DATA BTR_REPO; do
-      [ -n "${!name:-}" ] && printf 'export %s=%q\n' "$name" "${!name}"
-    done
+    [ -n "${BTR_DATA:-}" ] && printf 'export BTR_DATA=%q\n' "$BTR_DATA"
     printf 'echo "等待哔哩哔哩客户端退出…"\n'
     printf 'for _ in $(seq 1 120); do kill -0 %q 2>/dev/null || break; sleep 0.5; done\n' "$FROM_APP"
     printf 'for _ in $(seq 1 40); do pgrep -f %q >/dev/null 2>&1 || break; sleep 0.5; done\n' "$APP/Contents/"
@@ -153,7 +151,8 @@ sync_appinfo() {
   fi
 }
 
-asar_installed() { python3 -I "$PATCHER" status "$1" | python3 -I -c 'import json,sys;print("yes" if json.load(sys.stdin)["installed"] else "no")'; }
+# 读 app.asar 的一项状态：文字原样输出（clientVersion），其余的回答有没有（installed：yes/no）。
+asar_field() { python3 -I "$PATCHER" status "$2" | python3 -I -c 'import json,sys;v=json.load(sys.stdin)[sys.argv[1]];print(v if isinstance(v,str) else "yes" if v else "no")' "$1"; }
 
 make_backup() {
   if [ -d "$BACKUP" ]; then
@@ -161,11 +160,11 @@ make_backup() {
     backup_version=$(/usr/libexec/PlistBuddy -c "Print CFBundleShortVersionString" "$BACKUP/Contents/Info.plist")
     app_version=$(/usr/libexec/PlistBuddy -c "Print CFBundleShortVersionString" "$PLIST")
     if [ "$backup_version" = "$app_version" ]; then return; fi
-    [ "$(asar_installed "$ASAR")" = "no" ] || die "客户端版本（${app_version}）和备份（${backup_version}）不一致，且当前客户端已含 BTR。请重新安装官方客户端后再运行。"
+    [ "$(asar_field installed "$ASAR")" = "no" ] || die "客户端版本（${app_version}）和备份（${backup_version}）不一致，且当前客户端已含 BTR。请重新安装官方客户端后再运行。"
     say "官方客户端已更新到 ${app_version}，替换旧备份"
     rm -rf "$BACKUP"
   fi
-  [ "$(asar_installed "$ASAR")" = "no" ] || die "当前客户端已含 BTR 但没有备份，请先重新安装官方客户端"
+  [ "$(asar_field installed "$ASAR")" = "no" ] || die "当前客户端已含 BTR 但没有备份，请先重新安装官方客户端"
   codesign --verify --deep --strict "$APP" 2>/dev/null || say "注意：当前客户端签名校验未通过，备份仍会继续"
   say "备份官方客户端到 ${BACKUP}（约 400 MB，只做一次）"
   mkdir -p "$(dirname "$BACKUP")"
@@ -176,8 +175,7 @@ make_backup() {
 
 # BTR 的代码随本仓库一起发布（desktop/dist），只装在 Mac 上测过的这一份。
 fetch_bundle() {
-  BUNDLE="${BTR_REPO:+$BTR_REPO/dist/desktop.js}"
-  BUNDLE="${BUNDLE:-$HERE/desktop/dist/desktop.js}"
+  BUNDLE="$HERE/desktop/dist/desktop.js"
   [ -f "$BUNDLE" ] || die "找不到 ${BUNDLE}，请按 README 重新下载本仓库"
 }
 
@@ -224,7 +222,7 @@ uninstall() {
   check_app
   ensure_data_dir
   # 当前客户端已经不含 BTR（比如重新装过官方客户端，可能比备份新）时不能用备份覆盖它，只清理 BTR 的文件。
-  local state; state="$(asar_installed "$ASAR" 2>/dev/null || true)"
+  local state; state="$(asar_field installed "$ASAR" 2>/dev/null || true)"
   # 读不出来不等于“装了 BTR”：当前可能是用户新装的官方客户端，不能拿旧备份覆盖它。
   case "$state" in yes|no) ;; *) die "读不出当前客户端的状态（需要 python3），没有做任何修改。想还原的话，从官网重新安装官方客户端即可。" ;; esac
   if [ "$state" = "no" ]; then
@@ -249,7 +247,7 @@ uninstall() {
   rm -rf "$old"
   mv "$APP" "$old" && mv "$restore" "$APP" && rm -rf "$old"
   # 还原后的客户端就是备份本身的副本，确认它已就位且不含 BTR 后，清理 BTR 留下的文件；下次安装会重新备份。
-  if [ -f "$ASAR" ] && [ "$(asar_installed "$ASAR")" = "no" ]; then
+  if [ -f "$ASAR" ] && [ "$(asar_field installed "$ASAR")" = "no" ]; then
     clean_client_cache
     cleanup_data
     say "已还原官方客户端，并清理了备份和 BTR 的数据。账号和设置未改动。"
@@ -265,10 +263,10 @@ uninstall() {
 clean_client_cache() {
   local file official="$BACKUP/Contents/Resources/app.asar" version official_version
   [ -d "$CLIENT_RESOURCE" ] || return 0
-  official_version="$(asar_version "$official" || true)"
+  official_version="$(asar_field clientVersion "$official" || true)"
   for file in "$CLIENT_RESOURCE"/*.asar; do
-    [ -f "$file" ] && [ "$(asar_installed "$file" 2>/dev/null || true)" = "yes" ] || continue
-    version="$(asar_version "$file" || true)"
+    [ -f "$file" ] && [ "$(asar_field installed "$file" 2>/dev/null || true)" = "yes" ] || continue
+    version="$(asar_field clientVersion "$file" || true)"
     if [ -n "$version" ] && [ "$version" = "$official_version" ] \
       && cp "$official" "$file.btr.tmp" && mv "$file.btr.tmp" "$file"; then
       say "客户端缓存里带 BTR 的副本已换回官方版本：$(basename "$file")"
@@ -277,7 +275,6 @@ clean_client_cache() {
     fi
   done
 }
-asar_version() { python3 -I "$PATCHER" status "$1" | python3 -I -c 'import json,sys;print(json.load(sys.stdin)["clientVersion"])'; }
 
 # 安装脚本所在的文件夹不自动删除：里面可能有用户自己的文件，删不删由用户决定。
 

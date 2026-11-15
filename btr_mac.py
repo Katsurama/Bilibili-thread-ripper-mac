@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """BTR Desktop macOS patcher.
 
-Adds the BTR Desktop bundle (dist/desktop.js from the Windows repo) to the official
+Adds the BTR Desktop bundle (desktop/dist/desktop.js in this repo) to the official
 哔哩哔哩.app through an ordinary Electron preload, the same way the Windows build does.
 Only the standard library is used, so the system python3 (3.9+) is enough.
 
@@ -184,8 +184,7 @@ def patch(original_path, bundle_path, output_path, install_root):
     # The bundle travels inside the preload as a JSON string; the preload is the only reader.
     embedded = json.dumps(bundle.decode("utf-8"))
     archive.set(PRELOAD_FILE, preload.replace("__BTR_BUNDLE__", embedded))
-    # The live bundle is built next to desktop.js in this repo; a BTR_REPO checkout of the
-    # Windows repo has none, and the client then simply gets no live acceleration.
+    # The live bundle is built next to desktop.js; without it the client simply gets no live acceleration.
     live_path = os.path.join(os.path.dirname(os.path.abspath(bundle_path)), "live.js")
     if os.path.isfile(live_path):
         archive.set(LIVE_FILE, open(live_path, "rb").read())
