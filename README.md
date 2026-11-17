@@ -68,6 +68,17 @@
 
 <p align="center"><sub>左：客户端设置页里的 BTR 设置　右：播放器“更多播放设置”里的 CDN 和线程数<br>动图录于旧版本：新版设置页里没有“显示错误”“Debug 模式”，播放器菜单里的 BTR 设置收成了一行“线程撕裂者”，点开才展开</sub></p>
 
+## ☕ 支持作者
+
+<div align="center">
+
+如果这个项目帮到了你，可以在爱发电请我喝杯咖啡 ☕<br>
+<sub>这是移植版，原项目作者是 [LouieTang](https://github.com/MrTangLuyao)，也欢迎支持原作者</sub>
+
+<a href="https://afdian.com/a/katsurama"><img src="https://img.shields.io/badge/%E2%98%95%20%E5%9C%A8%E7%88%B1%E5%8F%91%E7%94%B5%E6%94%AF%E6%8C%81%E6%88%91-946ce6?style=for-the-badge" alt="在爱发电支持我" height="40"></a>
+
+</div>
+
 ## 🆕 最近更新
 
 **2026.11.15.3**
@@ -134,17 +145,6 @@
 
 > [!IMPORTANT]
 > 装着 BTR 的时候请保留 `~/btr-mac`：客户端里的更新和卸载按钮会用到里面的脚本。
-
-## ☕ 支持作者
-
-<div align="center">
-
-如果这个项目帮到了你，可以在爱发电请我喝杯咖啡 ☕<br>
-<sub>这是移植版，原项目作者是 [LouieTang](https://github.com/MrTangLuyao)，也欢迎支持原作者</sub>
-
-<a href="https://afdian.com/a/katsurama"><img src="https://img.shields.io/badge/%E2%98%95%20%E5%9C%A8%E7%88%B1%E5%8F%91%E7%94%B5%E6%94%AF%E6%8C%81%E6%88%91-946ce6?style=for-the-badge" alt="在爱发电支持我" height="40"></a>
-
-</div>
 
 ## ⚙️ 设置
 
