@@ -135,6 +135,17 @@
 > [!IMPORTANT]
 > 装着 BTR 的时候请保留 `~/btr-mac`：客户端里的更新和卸载按钮会用到里面的脚本。
 
+## ☕ 支持作者
+
+<div align="center">
+
+如果这个项目帮到了你，可以在爱发电请我喝杯咖啡 ☕<br>
+<sub>这是移植版，原项目作者是 [LouieTang](https://github.com/MrTangLuyao)，也欢迎支持原作者</sub>
+
+<a href="https://afdian.com/a/katsurama"><img src="https://img.shields.io/badge/%E2%98%95%20%E5%9C%A8%E7%88%B1%E5%8F%91%E7%94%B5%E6%94%AF%E6%8C%81%E6%88%91-946ce6?style=for-the-badge" alt="在爱发电支持我" height="40"></a>
+
+</div>
+
 ## ⚙️ 设置
 
 设置都放在客户端自己的界面里，没有 Win 版的悬浮球；设置项和 Win 版相同，只多了一个“直播加速（实验性）”。设置页标题下面会显示 macOS 移植的版本、基于的 BTR Desktop 版本、问题反馈说明和原项目的 MIT 许可证。有三个入口，设置互相同步：
@@ -278,17 +289,6 @@ bash ~/btr-mac/install-mac.sh
 - 本地签名后，macOS 不再认为这是哔哩哔哩官方签名的应用。备份里保留了原版，随时可以还原。
 - 官方客户端会根据 `Resources/app-update.yml` 判断自己是否被重新安装，判断为重装就会恢复默认设置并重新下载热更新。安装、更新和卸载时脚本会同步这条记录（`~/Library/Application Support/bilibili/resource/.appInfo`），避免设置被重置。
 - 欢迎在 Issues 里补充其他 macOS / 客户端版本的测试结果（`bash ~/btr-mac/install-mac.sh status` 可以看到客户端和 BTR 的版本）。
-
-## ☕ 支持作者
-
-<div align="center">
-
-如果这个项目帮到了你，可以在爱发电请我喝杯咖啡 ☕<br>
-<sub>这是移植版，原项目作者是 [LouieTang](https://github.com/MrTangLuyao)，也欢迎支持原作者</sub>
-
-<a href="https://afdian.com/a/katsurama"><img src="https://img.shields.io/badge/%E2%98%95%20%E5%9C%A8%E7%88%B1%E5%8F%91%E7%94%B5%E6%94%AF%E6%8C%81%E6%88%91-946ce6?style=for-the-badge" alt="在爱发电支持我" height="40"></a>
-
-</div>
 
 ## 📄 致谢与许可
 
