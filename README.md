@@ -10,7 +10,7 @@
 把[线程撕裂者](https://github.com/MrTangLuyao/Bilibili-thread-ripper)带到官方 macOS 客户端里：视频多线程下载，直播多节点竞速<br>
 原本的播放器、字幕、弹幕和快捷键都保留
 
-[![平台](https://img.shields.io/badge/%E5%B9%B3%E5%8F%B0-macOS-555555?style=flat-square&logo=apple)](#-安装) [![版本](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2FKatsurama%2FBilibili-thread-ripper-mac%2Fmain%2Fmac-version.json&query=%24.version&label=%E7%89%88%E6%9C%AC&style=flat-square&color=fb7299)](#-最近更新) [![Win 版](https://img.shields.io/badge/Win%20%E7%89%88-BTR%20Desktop-0078d4?style=flat-square&logo=windows)](https://github.com/MrTangLuyao/Bilibili-thread-ripper-desktop) [![源项目](https://img.shields.io/badge/%E6%BA%90%E9%A1%B9%E7%9B%AE-%E6%B2%B9%E7%8C%B4%E8%84%9A%E6%9C%AC-fb7299?style=flat-square)](https://github.com/MrTangLuyao/Bilibili-thread-ripper) [![Stars](https://img.shields.io/github/stars/Katsurama/Bilibili-thread-ripper-mac?style=flat-square&color=f5b301)](https://github.com/Katsurama/Bilibili-thread-ripper-mac/stargazers) [![许可证](https://img.shields.io/github/license/Katsurama/Bilibili-thread-ripper-mac?label=%E8%AE%B8%E5%8F%AF%E8%AF%81&style=flat-square&color=3b82f6)](LICENSE)
+[![平台](https://img.shields.io/badge/%E5%B9%B3%E5%8F%B0-macOS-555555?style=flat-square&logo=apple)](#-安装) [![版本](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2FKatsurama%2FBilibili-thread-ripper-mac%2Fmain%2Fmac-version.json&query=%24.version&label=%E7%89%88%E6%9C%AC&style=flat-square&color=fb7299)](#-最近更新) [![Win 版](https://img.shields.io/badge/Win%20%E7%89%88-BTR%20Desktop-0078d4?style=flat-square&logo=windows)](https://github.com/MrTangLuyao/Bilibili-thread-ripper-desktop) [![源项目](https://img.shields.io/badge/%E6%BA%90%E9%A1%B9%E7%9B%AE-%E6%B2%B9%E7%8C%B4%E8%84%9A%E6%9C%AC-fb7299?style=flat-square)](https://github.com/MrTangLuyao/Bilibili-thread-ripper) [![Stars](https://img.shields.io/github/stars/Katsurama/Bilibili-thread-ripper-mac?style=flat-square&color=f5b301)](https://github.com/Katsurama/Bilibili-thread-ripper-mac/stargazers) [![许可证](https://img.shields.io/github/license/Katsurama/Bilibili-thread-ripper-mac?label=%E8%AE%B8%E5%8F%AF%E8%AF%81&style=flat-square&color=3b82f6)](LICENSE) [![爱发电](https://img.shields.io/badge/%E7%88%B1%E5%8F%91%E7%94%B5-%E6%94%AF%E6%8C%81%E4%BD%9C%E8%80%85-946ce6?style=flat-square)](https://afdian.com/a/katsurama)
 
 [**安装**](#-安装) · [最近更新](#-最近更新) · [设置](#️-设置) · [直播加速](#-直播加速实验性) · [更新](#-更新) · [卸载](#-卸载) · [常见问题](#-常见问题)
 
@@ -278,6 +278,17 @@ bash ~/btr-mac/install-mac.sh
 - 本地签名后，macOS 不再认为这是哔哩哔哩官方签名的应用。备份里保留了原版，随时可以还原。
 - 官方客户端会根据 `Resources/app-update.yml` 判断自己是否被重新安装，判断为重装就会恢复默认设置并重新下载热更新。安装、更新和卸载时脚本会同步这条记录（`~/Library/Application Support/bilibili/resource/.appInfo`），避免设置被重置。
 - 欢迎在 Issues 里补充其他 macOS / 客户端版本的测试结果（`bash ~/btr-mac/install-mac.sh status` 可以看到客户端和 BTR 的版本）。
+
+## ☕ 支持作者
+
+<div align="center">
+
+如果这个项目帮到了你，可以在爱发电请我喝杯咖啡 ☕<br>
+<sub>这是移植版，原项目作者是 [LouieTang](https://github.com/MrTangLuyao)，也欢迎支持原作者</sub>
+
+<a href="https://afdian.com/a/katsurama"><img src="https://img.shields.io/badge/%E2%98%95%20%E5%9C%A8%E7%88%B1%E5%8F%91%E7%94%B5%E6%94%AF%E6%8C%81%E6%88%91-946ce6?style=for-the-badge" alt="在爱发电支持我" height="40"></a>
+
+</div>
 
 ## 📄 致谢与许可
 
