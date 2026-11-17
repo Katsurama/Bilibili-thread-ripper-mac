@@ -68,15 +68,6 @@
 
 <p align="center"><sub>左：客户端设置页里的 BTR 设置　右：播放器“更多播放设置”里的 CDN 和线程数<br>动图录于旧版本：新版设置页里没有“显示错误”“Debug 模式”，播放器菜单里的 BTR 设置收成了一行“线程撕裂者”，点开才展开</sub></p>
 
-## ☕ 支持作者
-
-> [!TIP]
-> **喜欢 BTR？**<br>
-> 如果它帮到了你，可以在爱发电请我喝杯咖啡，支持我继续维护 ❤️<br>
-> <sub>这是移植版，原项目作者是 [LouieTang](https://github.com/MrTangLuyao)，也欢迎支持原作者</sub>
->
-> <a href="https://afdian.com/a/katsurama"><img src="https://img.shields.io/badge/%E2%98%95%20%E5%9C%A8%E7%88%B1%E5%8F%91%E7%94%B5%E6%94%AF%E6%8C%81%E6%88%91-946ce6?style=for-the-badge" alt="在爱发电支持我" height="40"></a>
-
 ## 🆕 最近更新
 
 **2026.11.15.3**
@@ -287,6 +278,15 @@ bash ~/btr-mac/install-mac.sh
 - 本地签名后，macOS 不再认为这是哔哩哔哩官方签名的应用。备份里保留了原版，随时可以还原。
 - 官方客户端会根据 `Resources/app-update.yml` 判断自己是否被重新安装，判断为重装就会恢复默认设置并重新下载热更新。安装、更新和卸载时脚本会同步这条记录（`~/Library/Application Support/bilibili/resource/.appInfo`），避免设置被重置。
 - 欢迎在 Issues 里补充其他 macOS / 客户端版本的测试结果（`bash ~/btr-mac/install-mac.sh status` 可以看到客户端和 BTR 的版本）。
+
+## ☕ 支持作者
+
+> [!TIP]
+> **喜欢 BTR？**<br>
+> 如果它帮到了你，可以在爱发电请我喝杯咖啡，支持我继续维护 ❤️<br>
+> <sub>这是移植版，原项目作者是 [LouieTang](https://github.com/MrTangLuyao)，也欢迎支持原作者</sub>
+>
+> <a href="https://afdian.com/a/katsurama"><img src="https://img.shields.io/badge/%E2%98%95%20%E5%9C%A8%E7%88%B1%E5%8F%91%E7%94%B5%E6%94%AF%E6%8C%81%E6%88%91-946ce6?style=for-the-badge" alt="在爱发电支持我" height="40"></a>
 
 ## 📄 致谢与许可
 
