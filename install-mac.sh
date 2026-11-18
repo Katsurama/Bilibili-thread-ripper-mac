@@ -170,7 +170,9 @@ make_backup() {
   mkdir -p "$(dirname "$BACKUP")"
   # 上次备份中断留下的半成品要先删掉：ditto 会合并进已有目录，旧文件会混进备份。
   rm -rf "$BACKUP.tmp"
-  ditto "$APP" "$BACKUP.tmp" && mv "$BACKUP.tmp" "$BACKUP"
+  # 不写成 a && b：set -e 不管 && 前面那一步的失败，脚本会带着残缺的备份往下走。
+  ditto "$APP" "$BACKUP.tmp" || { rm -rf "$BACKUP.tmp"; die "备份失败（磁盘空间不够？），客户端没有改动"; }
+  mv "$BACKUP.tmp" "$BACKUP"
 }
 
 # BTR 的代码随本仓库一起发布（desktop/dist），只装在 Mac 上测过的这一份。
@@ -195,7 +197,8 @@ install() {
   # 不用 local：退出时的 trap 要读到它，打补丁失败也不留下一百多 MB 的临时文件。
   tmp="$(mktemp -d "$DATA/tmp.XXXXXX")"; trap 'rm -rf "$tmp"' EXIT
   python3 -I "$PATCHER" patch "$BACKUP/Contents/Resources/app.asar" "$BUNDLE" "$tmp/app.asar" "$HERE"
-  cp "$tmp/app.asar" "$ASAR.btr.tmp" && mv "$ASAR.btr.tmp" "$ASAR"
+  cp "$tmp/app.asar" "$ASAR.btr.tmp" || { rm -f "$ASAR.btr.tmp"; die "复制补丁失败（磁盘空间不够？），客户端没有改动"; }
+  mv "$ASAR.btr.tmp" "$ASAR"
   resign
   sync_appinfo
   say "安装完成。打开客户端，在 设置 → BTR Desktop for macOS 里调整；还原请运行 install-mac.sh uninstall"
@@ -237,7 +240,7 @@ uninstall() {
   say "用备份还原官方客户端（保留原始苹果签名）"
   local restore; restore="$(dirname "$APP")/.btr-restore.app"
   rm -rf "$restore"
-  ditto "$BACKUP" "$restore"
+  ditto "$BACKUP" "$restore" || { rm -rf "$restore"; die "复制备份失败（磁盘空间不够？），客户端没有改动"; }
   # 备份带着下载时的隔离标记，新复制出来的应用第一次执行会被系统检查；和安装时一样去掉它。
   # 去标记会改 ctime，所以必须在计算版本记录之前做。改名不会改变里面文件的 ctime。
   xattr -dr com.apple.quarantine "$restore" 2>/dev/null || true
@@ -245,7 +248,15 @@ uninstall() {
   # 用改名来换：删除 400 MB 要一两秒，中途被打断的话 /Applications 里就没有客户端了。
   local old; old="$(dirname "$APP")/.btr-old.app"
   rm -rf "$old"
-  mv "$APP" "$old" && mv "$restore" "$APP" && rm -rf "$old"
+  mv "$APP" "$old"
+  # 换不进去就把原来的客户端放回原处，不能让它留在隐藏的 .btr-old.app 里。
+  if ! mv "$restore" "$APP"; then
+    mv "$old" "$APP" || die "还原失败，客户端现在在 ${old}，请把它改名回 ${APP}"
+    # 版本记录刚按还原副本写过，改回放回原处的这个客户端的值，否则下次启动设置会恢复默认。
+    rm -rf "$restore"; sync_appinfo
+    die "还原失败，客户端没有改动，备份保留在 ${BACKUP}"
+  fi
+  rm -rf "$old"
   # 还原后的客户端就是备份本身的副本，确认它已就位且不含 BTR 后，清理 BTR 留下的文件；下次安装会重新备份。
   if [ -f "$ASAR" ] && [ "$(asar_field installed "$ASAR")" = "no" ]; then
     clean_client_cache

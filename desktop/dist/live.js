@@ -24,7 +24,7 @@ SOFTWARE.
 */
 (function () {
 if (globalThis.__BTR_LIVE_BUNDLE__) return;
-Object.defineProperty(globalThis, "__BTR_LIVE_BUNDLE__", { value: "2026.11.10.1-d1" });
+Object.defineProperty(globalThis, "__BTR_LIVE_BUNDLE__", { value: "2026.11.15.1-d1" });
 
 /* shared/range-core.js */
 (function installRangeCore(root) {
@@ -158,12 +158,25 @@ Object.defineProperty(globalThis, "__BTR_LIVE_BUNDLE__", { value: "2026.11.10.1-
       bufferAheadSeconds: [30, 45, 90, 180].includes(Number(source.bufferAheadSeconds)) ? Number(source.bufferAheadSeconds) : 45,
       // 二级缓冲: what the browser's buffer has no room for waits in memory (native-mse-player.js).
       // Experimental, off unless switched on.
-      secondaryBuffer: source.secondaryBuffer === true
+      secondaryBuffer: source.secondaryBuffer === true,
+      // 音频加速: switched off, only the video is sped up. The full takeover then fetches the
+      // audio as one piece over one connection; the compatibility mode leaves it to Bilibili.
+      audioAcceleration: source.audioAcceleration !== false,
+      // 自动清晰度的最高档: the best quality 自动 may choose in the full takeover; 0 for no limit.
+      autoQualityMax: [32, 64, 80, 116, 120].includes(Number(source.autoQualityMax)) ? Number(source.autoQualityMax) : 0
     };
+  }
+
+  // A speed in bytes a second, as the panels write it: KB/s, MB/s from one megabyte up.
+  function formatSpeed(bps) {
+    const value = Math.max(0, Number(bps) || 0);
+    if (value >= 1048576) return `${(value / 1048576).toFixed(value >= 10 * 1048576 ? 0 : 1)} MB/s`;
+    return `${Math.round(value / 1024)} KB/s`;
   }
 
   root.__BILI_RANGE_CORE__ = Object.freeze({
     concatChunks,
+    formatSpeed,
     isBilibiliMediaUrl,
     normalizeCdnHost,
     normalizeSettings,
@@ -423,7 +436,7 @@ Object.defineProperty(globalThis, "__BTR_LIVE_BUNDLE__", { value: "2026.11.10.1-
 
   // ---- stats for the settings panel ----
   const stats = {
-    version: "2026.11.10.1-d1",
+    version: "2026.11.15.1-d1",
     architecture: "live-segment-ripper",
     mode: "live",
     playerState: "waiting",
@@ -902,7 +915,7 @@ Object.defineProperty(globalThis, "__BTR_LIVE_BUNDLE__", { value: "2026.11.10.1-
       },
       getStats: () => ({ ...stats }),
       getEvents: () => events.map((event) => ({ ...event })),
-      version: "2026.11.10.1-d1"
+      version: "2026.11.15.1-d1"
     })
   });
   publish();
@@ -939,7 +952,7 @@ Object.defineProperty(globalThis, "__BTR_LIVE_BUNDLE__", { value: "2026.11.10.1-
 
   // bridge.js DEFAULTS, the stored settings before anything is changed: Settings marks every
   // value that differs with *. dev/diagnostic-report-test.js checks that the two stay equal.
-  const DEFAULTS = Object.freeze({ enabled: true, liveEnabled: false, episodeEnabled: true, blockInternational: false, bufferAheadSeconds: 45, secondaryBuffer: false, theme: "auto", concurrency: 8, autoConcurrency: true, takeover: "full", mode: "mainland", customHosts: Object.freeze([]), floatingButton: true, floatingButtonLeft: null, floatingButtonTop: null, guideDone: false });
+  const DEFAULTS = Object.freeze({ enabled: true, liveEnabled: false, episodeEnabled: true, blockInternational: false, bufferAheadSeconds: 45, secondaryBuffer: false, audioAcceleration: true, autoQualityMax: 0, theme: "auto", concurrency: 8, autoConcurrency: true, takeover: "full", mode: "mainland", customHosts: Object.freeze([]), floatingButton: true, floatingButtonLeft: null, floatingButtonTop: null, guideDone: false });
 
   // English names of Bilibili's quality ids; the player's own labels are Chinese (1080P 60帧).
   const QUALITY_LABELS = Object.freeze({ 127: "8K", 126: "Dolby Vision", 125: "HDR", 120: "4K", 116: "1080P60", 112: "1080P+", 80: "1080P", 74: "720P60", 64: "720P", 32: "480P", 16: "360P", 6: "240P" });
@@ -1467,6 +1480,8 @@ Object.defineProperty(globalThis, "__BTR_LIVE_BUNDLE__", { value: "2026.11.10.1-
       ["threads", !s ? "n/a" : s.autoConcurrency === true ? mark("auto", "autoConcurrency") : s.autoConcurrency === false ? mark(count(s.concurrency), "autoConcurrency", "concurrency") : "n/a"],
       ["buffer ahead", s ? mark(num(s.bufferAheadSeconds) === null ? "n/a" : `${count(s.bufferAheadSeconds)} s`, "bufferAheadSeconds") : "n/a"],
       ["secondary buffer", flag("secondaryBuffer")],
+      ["audio acceleration", flag("audioAcceleration")],
+      ["auto quality limit", !s || num(s.autoQualityMax) === null ? "n/a" : mark(s.autoQualityMax ? QUALITY_LABELS[s.autoQualityMax] || count(s.autoQualityMax) : "none", "autoQualityMax")],
       ["episodes", flag("episodeEnabled")],
       ["live", flag("liveEnabled")],
       ["block international", flag("blockInternational")]

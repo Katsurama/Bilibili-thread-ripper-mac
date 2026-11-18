@@ -116,6 +116,22 @@ test("uninstall changes nothing when it cannot tell whether the client has BTR",
   fs.rmSync(client.dir, { recursive: true });
 });
 
+test("uninstall puts the client back where it was when the restored copy cannot be moved in", { skip: process.platform !== "darwin" }, () => {
+  const client = fakeClient(), bin = path.join(client.dir, "bin");
+  // A mv that refuses only the move of the restored copy into place.
+  fs.mkdirSync(bin);
+  fs.writeFileSync(path.join(bin, "mv"), '#!/bin/bash\ncase "$1" in *.btr-restore.app) exit 1 ;; esac\nexec /bin/mv "$@"\n', { mode: 0o755 });
+  const patched = fs.readFileSync(client.asar);
+  const { execFileSync } = require("node:child_process");
+  const env = { ...process.env, PATH: `${bin}:${process.env.PATH}`, BTR_APP: client.app, BTR_DATA: client.data, BTR_CLIENT_RESOURCE: path.join(client.dir, "resource") };
+  assert.throws(() => execFileSync("/bin/bash", [path.resolve(__dirname, "../../install-mac.sh"), "uninstall"], { env, stdio: "pipe", encoding: "utf8" }),
+    error => /还原失败，客户端没有改动/.test(error.stderr));
+  assert.deepEqual(fs.readFileSync(client.asar), patched, "the client is back in place, unchanged");
+  assert.deepEqual(fs.readdirSync(path.dirname(client.app)), ["哔哩哔哩.app"], "no hidden old client or restore copy left beside it");
+  assert.ok(fs.existsSync(path.join(client.data, "backup")), "the backup is kept");
+  fs.rmSync(client.dir, { recursive: true });
+});
+
 // What a new user gets: only the files git tracks (as `git clone` gives them), as they are now in the working copy,
 // installed into a made-up official client (signedClient), then uninstalled.
 test("a fresh download installs into an official client and uninstalls back to it", { skip: process.platform !== "darwin" }, () => {

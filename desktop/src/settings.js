@@ -27,7 +27,7 @@
   const emit = () => listeners.forEach(fn => { try { fn({ ...current, customHosts: current.customHosts.slice() }); } catch (error) { console.error("BTR settings listener", error); } });
   const channel = typeof BroadcastChannel === "function" ? new BroadcastChannel("BTR_Desktop.settings.v1") : null;
   const api = {
-    version: root.__BTR_DESKTOP_RELEASE__?.version || "2026.11.10.1-d1",
+    version: root.__BTR_DESKTOP_RELEASE__?.version || "2026.11.15.1-d1",
     adapterRevision: root.__BTR_DESKTOP_RELEASE__?.adapterRevision || 1,
     getSettings: () => ({ ...current, customHosts: current.customHosts.slice() }),
     setSettings(patch) {
@@ -38,15 +38,7 @@
       if (liveChanged) tellLive();
       return api.getSettings();
     },
-    resetSettings() {
-      const next = normalize({});
-      localStorage.setItem(KEY, JSON.stringify(next)); // Failure must not pretend to save.
-      current = next; emit(); channel?.postMessage(current);
-      tellLive();
-      return api.getSettings();
-    },
-    onSettings(fn) { listeners.add(fn); fn(api.getSettings()); return () => listeners.delete(fn); },
-    update: Object.freeze({ state: "idle", message: "从 GitHub 检查 BTR 更新" })
+    onSettings(fn) { listeners.add(fn); fn(api.getSettings()); return () => listeners.delete(fn); }
   };
   root.addEventListener("storage", event => {
     if (event.key !== KEY) return;
