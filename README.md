@@ -306,6 +306,12 @@ bash ~/btr-mac/install-mac.sh
 
 ---
 
+### 💖 赞助者
+
+**特别鸣谢**：虚位以待
+
+**感谢名单**：虚位以待，成为第一位支持者 ☕
+
 ## 📄 致谢与许可
 
 - Win 版 BTR Desktop（接到客户端播放器上的代码和设置界面）：[MrTangLuyao/Bilibili-thread-ripper-desktop](https://github.com/MrTangLuyao/Bilibili-thread-ripper-desktop)，作者 LouieTang，MIT 许可证；图标同样来自原项目
