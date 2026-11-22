@@ -370,8 +370,8 @@
     if (event.source !== root || event.data?.channel !== CHANNEL) return;
     if (event.data.type === "get-stats") publish();
   });
-  const timer = setInterval(scan, 150);
-  root.addEventListener("pagehide", () => { clearInterval(timer); stop("window closed"); watch(null); }, { once: true });
+  const timer = inPlayer ? setInterval(scan, 150) : 0;
+  root.addEventListener("pagehide", () => { if (timer) clearInterval(timer); stop("window closed"); watch(null); }, { once: true });
 
   // The element as the browser has it, for the diagnostic copy.
   function elementState(video) {

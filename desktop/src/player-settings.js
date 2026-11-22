@@ -1,8 +1,9 @@
 (function (root) {
   "use strict";
+  if (location.origin === "https://bilipc.bilibili.com" && location.pathname === "/index.html") return;
   const api = root.__BTR_DESKTOP__, threads = [4, 8, 16, 32, 64, 128];
   const id = "btr-desktop-player-settings";
-  let panel, unsubscribe, scheduled = false, opened = false;
+  let panel, unsubscribe, scheduled = false, opened = false, copyResetTimer = 0;
   const style = document.createElement("style");
   style.textContent = `
     #${id}{margin:0;color:#fff;font-size:12px;text-align:left}
@@ -51,7 +52,7 @@
   }
   // The page may write the clipboard only while its window is in front; otherwise the client's
   // main process does it (payload/preload.cjs).
-  const copyText = text => navigator.clipboard.writeText(text).catch(() => new Promise((resolve, reject) => {
+  const copyText = text => (navigator.clipboard?.writeText ? navigator.clipboard.writeText(text) : Promise.reject(Error("clipboard unavailable"))).catch(() => new Promise((resolve, reject) => {
     const channel = "__BTR_DESKTOP_UPDATE__", copyId = `${Date.now()}-${Math.random()}`;
     const answer = event => {
       if (event.source !== root || event.data?.channel !== channel || event.data.type !== "copied" || event.data.id !== copyId) return;
@@ -65,7 +66,8 @@
   function mount() {
     scheduled = false;
     const target = document.querySelector(".bpx-player-ctrl-setting-menu-right"), template = target?.querySelector(TEMPLATE);
-    if (!target || !template?.querySelector(".bui-radio-group .bui-radio-item input")) { if (panel && !panel.isConnected) { unsubscribe?.(); unsubscribe = null; panel = null; } return; }
+    const sample = template?.querySelector(".bui-radio-group .bui-radio-item");
+    if (!target || !sample?.querySelector("input") || !caption(sample)) { if (panel && !panel.isConnected) { unsubscribe?.(); unsubscribe = null; panel = null; } return; }
     if (panel?.parentElement === target) return;
     unsubscribe?.(); panel?.remove();
     panel = document.createElement("div"); panel.id = id;
@@ -77,10 +79,11 @@
     const error = document.createElement("div"); error.className = "btr-save-error"; error.setAttribute("role", "status");
     fold.append(
       summary,
+      group(template, "加速", "enabled", [["on", "开启"], ["off", "关闭"]]),
       group(template, "CDN", "mode", [["mainland", "大陆 CDN"], ["overseas", "海外 CDN"], ["custom", "自定义"]]),
       group(template, "并发线程", "concurrency", [["auto", "自动"], ...threads.map(value => [value, String(value)])]),
       // A button in the look of the client's own choices; it never stays picked.
-      group(template, "诊断", "diagnostics", [["copy", "复制诊断信息"]]),
+      group(template, "诊断", "diagnostics", [["stats", "统计信息"], ["copy", "复制诊断信息"]]),
       error
     );
     panel.append(fold);
@@ -89,13 +92,25 @@
       const setting = input.dataset.btrSetting;
       if (setting === "diagnostics") {
         input.checked = false;
+        if (input.value === "stats") {
+          const statsPanel = root.__BILI_STATS_PANEL__;
+          if (document.getElementById("__bilibili_thread_ripper_stats__")) statsPanel?.close?.();
+          else statsPanel?.open?.();
+          return;
+        }
+        if (input.value !== "copy") return;
         const text = caption(input.closest(".bui-radio-item"));
-        copyText(diagnostics()).then(() => "已复制", () => "复制失败").then(result => { text.textContent = result; setTimeout(() => { text.textContent = "复制诊断信息"; }, 2000); });
+        clearTimeout(copyResetTimer);
+        Promise.resolve().then(() => copyText(diagnostics())).then(() => "已复制", () => "复制失败").then(result => {
+          if (text) text.textContent = result;
+          copyResetTimer = setTimeout(() => { if (text) text.textContent = "复制诊断信息"; }, 2000);
+        });
         return;
       }
-      if (setting !== "mode" && setting !== "concurrency") return;
+      if (!["enabled", "mode", "concurrency"].includes(setting)) return;
       // "自动" switches 自动线程数 on; a number switches it off and sets that thread count.
-      const patch = setting === "mode" ? { mode: input.value }
+      const patch = setting === "enabled" ? { enabled: input.value === "on" }
+        : setting === "mode" ? { mode: input.value }
         : input.value === "auto" ? { autoConcurrency: true } : { autoConcurrency: false, concurrency: Number(input.value) };
       try { api.setSettings(patch); error.textContent = ""; }
       catch (_) { error.textContent = "设置保存失败，请检查客户端的数据目录是否可写。"; }
@@ -104,14 +119,19 @@
     unsubscribe = api.onSettings(settings => {
       for (const input of panel.querySelectorAll("[data-btr-setting]")) {
         if (input.dataset.btrSetting === "diagnostics") continue;
-        const shown = input.dataset.btrSetting === "concurrency" && settings.autoConcurrency ? "auto" : String(settings[input.dataset.btrSetting]);
+        const settingName = input.dataset.btrSetting;
+        const shown = settingName === "enabled" ? (settings.enabled ? "on" : "off")
+          : settingName === "concurrency" && settings.autoConcurrency ? "auto"
+          : String(settings[settingName]);
         input.checked = input.value === shown;
       }
-      state.textContent = `${{ mainland: "大陆 CDN", overseas: "海外 CDN", custom: "自定义 CDN" }[settings.mode]} · ${settings.autoConcurrency ? "自动线程" : `${settings.concurrency} 线程`}`;
+      state.textContent = settings.enabled
+        ? `${{ mainland: "大陆 CDN", overseas: "海外 CDN", custom: "自定义 CDN" }[settings.mode]} · ${settings.autoConcurrency ? "自动线程" : `${settings.concurrency} 线程`}`
+        : "已关闭";
     });
   }
   const observer = new MutationObserver(() => { if (!scheduled) { scheduled = true; requestAnimationFrame(mount); } });
   observer.observe(document.documentElement, {childList:true,subtree:true});
-  root.addEventListener("pagehide", () => { observer.disconnect(); unsubscribe?.(); }, {once:true});
+  root.addEventListener("pagehide", () => { observer.disconnect(); unsubscribe?.(); clearTimeout(copyResetTimer); }, {once:true});
   mount();
 })(globalThis);

@@ -38,6 +38,9 @@
       if (liveChanged) tellLive();
       return api.getSettings();
     },
+    resetSettings() {
+      return api.setSettings(normalize({}));
+    },
     onSettings(fn) { listeners.add(fn); fn(api.getSettings()); return () => listeners.delete(fn); }
   };
   root.addEventListener("storage", event => {

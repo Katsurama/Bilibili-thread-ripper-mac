@@ -193,8 +193,7 @@ Object.defineProperty(globalThis, "__BTR_LIVE_BUNDLE__", { value: "2026.11.15.1-
   "use strict";
 
   // The parts of the live module that carry logic: playlist parsing, P2P/proxy URL handling
-  // and the host pool, plus a room playinfo parser that only the tests use. No DOM and no
-  // timers, so dev tests can run all of it in Node.
+  // and the host pool. No DOM and no timers, so dev tests can run all of it in Node.
 
   // fMP4 HLS nodes that accept each other's signatures, verified by probing real streams
   // (2026-09): a segment signed for one of them downloads from all of them with HTTP 206,
@@ -243,34 +242,6 @@ Object.defineProperty(globalThis, "__BTR_LIVE_BUNDLE__", { value: "2026.11.15.1-
   function unwrapProxyUrl(value) {
     const match = PROXY_WRAP_RE.exec(String(value || ""));
     return match ? `${match[1]}//${match[2]}${match[3]}` : "";
-  }
-
-  // The playurl of getRoomPlayInfo, flattened to one entry per protocol/format/codec.
-  function parseRoomPlayInfo(payload) {
-    const playurl = payload?.data?.playurl_info?.playurl
-      || payload?.result?.playurl_info?.playurl
-      || payload?.playurl_info?.playurl;
-    const out = [];
-    for (const stream of playurl?.stream || []) {
-      for (const format of stream.format || []) {
-        for (const codec of format.codec || []) {
-          const urls = (codec.url_info || [])
-            .map((info) => ({ host: String(info?.host || ""), extra: String(info?.extra || "") }))
-            .filter((info) => info.host && !isP2pUrl(info.host));
-          if (!urls.length || !codec.base_url) continue;
-          out.push({
-            protocol: String(stream.protocol_name || ""),
-            format: String(format.format_name || ""),
-            codec: String(codec.codec_name || ""),
-            qn: Number(codec.current_qn) || 0,
-            acceptQn: Array.isArray(codec.accept_qn) ? codec.accept_qn.map(Number) : [],
-            baseUrl: String(codec.base_url),
-            urls
-          });
-        }
-      }
-    }
-    return out;
   }
 
   function segmentNumber(name) {
@@ -379,7 +350,6 @@ Object.defineProperty(globalThis, "__BTR_LIVE_BUNDLE__", { value: "2026.11.15.1-
     isLiveSegmentUrl,
     isP2pUrl,
     parseM3u8,
-    parseRoomPlayInfo,
     segmentNumber,
     unwrapProxyUrl
   });
@@ -1856,6 +1826,7 @@ Object.defineProperty(globalThis, "__BTR_LIVE_BUNDLE__", { value: "2026.11.15.1-
   // 复制诊断信息 for this live room: what live-hook.js knows (state, nodes, its last events), laid
   // out by shared/diagnostic-report.js as English text for an issue. No stream address.
   const copy = doc.createElement("div"); copy.className = "btr-live-copy"; copy.textContent = "复制诊断信息";
+  copy.setAttribute("role", "button"); copy.tabIndex = 0;
   function diagnostics() {
     const live = root.__biliThreadRipperLiveDebug, perf = root.performance;
     return String(root.__BTR_DIAGNOSTIC_REPORT__.render({
@@ -1867,17 +1838,20 @@ Object.defineProperty(globalThis, "__BTR_LIVE_BUNDLE__", { value: "2026.11.15.1-
     }));
   }
   // The player sits in a frame, where the clipboard API may be refused: then the old way.
-  const copyText = text => root.navigator.clipboard.writeText(text).catch(() => {
+  const copyText = text => (root.navigator?.clipboard?.writeText ? root.navigator.clipboard.writeText(text) : Promise.reject(Error("clipboard unavailable"))).catch(() => {
     const area = doc.createElement("textarea"); area.value = text; area.style.cssText = "position:fixed;opacity:0";
     doc.documentElement.append(area); area.select();
     const done = doc.execCommand("copy"); area.remove();
     if (!done) throw Error("copy refused");
   });
-  copy.addEventListener("click", event => {
-    event.stopPropagation();
+  let copyResetTimer = 0;
+  const triggerCopy = () => {
+    clearTimeout(copyResetTimer);
     Promise.resolve().then(() => copyText(diagnostics())).then(() => "已复制", () => "复制失败")
-      .then(text => { copy.textContent = text; setTimeout(() => { copy.textContent = "复制诊断信息"; }, 2000); });
-  });
+      .then(text => { copy.textContent = text; copyResetTimer = setTimeout(() => { copy.textContent = "复制诊断信息"; }, 2000); });
+  };
+  copy.addEventListener("click", event => { event.stopPropagation(); triggerCopy(); });
+  copy.addEventListener("keydown", event => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); event.stopPropagation(); triggerCopy(); } });
   // The menu belongs to the player; a click here must not also pick a quality or close it.
   row.addEventListener("click", event => { event.stopPropagation(); setEnabled(!enabled); });
   row.addEventListener("keydown", event => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); setEnabled(!enabled); } });
@@ -1900,7 +1874,7 @@ Object.defineProperty(globalThis, "__BTR_LIVE_BUNDLE__", { value: "2026.11.15.1-
     if (!allowed) { row.remove(); status.remove(); copy.remove(); tag.remove(); return; }
     if (!style.isConnected && (doc.head || doc.documentElement)) (doc.head || doc.documentElement).append(style);
     const panel = doc.querySelector(".quality-wrap .panel");
-    if (panel && panel.firstChild !== row) panel.prepend(row, status, copy);
+    if (panel && (panel.firstChild !== row || row.nextSibling !== status || status.nextSibling !== copy)) panel.prepend(row, status, copy);
     const label = doc.querySelector(".quality-wrap .selected-qn");
     if (label && label.firstChild !== tag) label.prepend(tag);
   }
@@ -1908,9 +1882,10 @@ Object.defineProperty(globalThis, "__BTR_LIVE_BUNDLE__", { value: "2026.11.15.1-
   // with requestAnimationFrame: a window behind others gets no frames, and the menu would stay
   // without the switch. The one-second timer checks too, in case a change slipped through.
   let queued = false;
-  new MutationObserver(() => { if (!queued) { queued = true; Promise.resolve().then(() => { queued = false; mount(); }); } })
-    .observe(doc.documentElement, { childList: true, subtree: true });
-  setInterval(() => { mount(); render(); }, 1000);
+  const observer = new MutationObserver(() => { if (!queued) { queued = true; Promise.resolve().then(() => { queued = false; mount(); }); } });
+  observer.observe(doc.documentElement, { childList: true, subtree: true });
+  const pollTimer = setInterval(() => { mount(); render(); }, 1000);
+  root.addEventListener?.("pagehide", () => { observer.disconnect(); clearInterval(pollTimer); clearTimeout(copyResetTimer); }, { once: true });
   mount(); render(); send();
 })(globalThis);
 

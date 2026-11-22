@@ -103,7 +103,12 @@ function decorate() {
   title.after(about);
 }
 // The settings page lives in the main window only; the player page changes constantly (danmaku).
-if (location.pathname === "/index.html") new MutationObserver(decorate).observe(document, { childList: true, subtree: true });
+let decorateScheduled = false;
+if (location.pathname === "/index.html") new MutationObserver(() => {
+  if (decorateScheduled) return;
+  decorateScheduled = true;
+  requestAnimationFrame(() => { decorateScheduled = false; decorate(); });
+}).observe(document, { childList: true, subtree: true });
 
 const code = __BTR_BUNDLE__;
 let injected = false;

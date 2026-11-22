@@ -3698,6 +3698,9 @@ globalThis.__BTR_DESKTOP_RELEASE__={"version":"2026.11.15.1-d1","adapterRevision
       if (liveChanged) tellLive();
       return api.getSettings();
     },
+    resetSettings() {
+      return api.setSettings(normalize({}));
+    },
     onSettings(fn) { listeners.add(fn); fn(api.getSettings()); return () => listeners.delete(fn); }
   };
   root.addEventListener("storage", event => {
@@ -4083,8 +4086,8 @@ globalThis.__BTR_DESKTOP_RELEASE__={"version":"2026.11.15.1-d1","adapterRevision
     if (event.source !== root || event.data?.channel !== CHANNEL) return;
     if (event.data.type === "get-stats") publish();
   });
-  const timer = setInterval(scan, 150);
-  root.addEventListener("pagehide", () => { clearInterval(timer); stop("window closed"); watch(null); }, { once: true });
+  const timer = inPlayer ? setInterval(scan, 150) : 0;
+  root.addEventListener("pagehide", () => { if (timer) clearInterval(timer); stop("window closed"); watch(null); }, { once: true });
 
   // The element as the browser has it, for the diagnostic copy.
   function elementState(video) {
@@ -4189,8 +4192,11 @@ globalThis.__BTR_DESKTOP_RELEASE__={"version":"2026.11.15.1-d1","adapterRevision
 /* src/settings-view.js */
 (function (root) {
   "use strict";
+  // 设置页仅存在于主窗口 /index.html；播放器页面弹幕持续变动，不挂载以免每帧空扫 DOM。
+  if (location.origin === "https://bilipc.bilibili.com" && location.pathname === "/player.html") return;
   const api = root.__BTR_DESKTOP__;
-  let panel, navButton, unsubscribe, unsubscribeUpdate, scheduled = false;
+  let panel, navButton, unsubscribe, unsubscribeUpdate, scheduled = false, resetArmed = false, resetTimer = 0;
+  const boundCatalogs = new WeakSet(), boundScrollers = new WeakSet();
   const style = document.createElement("style");
   style.textContent = `
     #btr-desktop-settings{padding:24px 0;border-bottom:1px solid var(--line_regular,#303133);color:var(--text1,#d8dce2);font:inherit}
@@ -4203,9 +4209,10 @@ globalThis.__BTR_DESKTOP_RELEASE__={"version":"2026.11.15.1-d1","adapterRevision
     #btr-desktop-settings #btr-desktop-uninstall:hover:not(:disabled){background:#d04450}
     #btr-desktop-settings button:disabled{opacity:.55;cursor:default}
     #btr-desktop-settings .btr-inline{margin:0}#btr-desktop-settings .btr-threads-row.btr-auto{opacity:.45}#btr-desktop-settings .btr-threads-row.btr-auto input{cursor:default}
+    #btr-desktop-settings .btr-video-controls.btr-disabled{opacity:.45}#btr-desktop-settings .btr-disabled-note{margin:4px 0 8px}
     #btr-desktop-settings input{accent-color:#d45b88}#btr-desktop-settings input[type=checkbox]{width:16px;height:16px;vertical-align:middle;margin:0 8px 0 0}
     #btr-desktop-settings input[type=range]{width:min(290px,55vw)}#btr-desktop-settings output{min-width:35px;color:#ef77a3;font-weight:600}
-    #btr-desktop-settings .btr-custom{margin:0 0 8px 148px;max-width:520px}#btr-desktop-settings .btr-host-title{margin:14px 0 8px;color:var(--text2,#b3bfca);font-size:13px}
+    #btr-desktop-settings .btr-custom{margin:0 0 8px 148px;max-width:520px}#btr-desktop-settings .btr-custom-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:6px}#btr-desktop-settings .btr-custom-head button{padding:2px 9px;font-size:12px}#btr-desktop-settings .btr-host-title{margin:14px 0 8px;color:var(--text2,#b3bfca);font-size:13px}
     #btr-desktop-settings .btr-host-list{display:grid;grid-template-columns:repeat(2,minmax(230px,1fr));gap:9px 16px;font-size:12px}#btr-desktop-settings .btr-host-list label{overflow-wrap:anywhere;cursor:pointer}
     #btr-desktop-settings .btr-host-add{display:flex;gap:8px;margin:8px 0}#btr-desktop-settings input[type=text]{flex:1;min-width:0;border:1px solid var(--line_regular,#353638);border-radius:5px;background:var(--bg3,#252729);color:inherit;padding:7px 10px;font:inherit;font-size:12px}
     #btr-desktop-settings .btr-manual-host{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:6px 0;font-size:12px;overflow-wrap:anywhere}#btr-desktop-settings .btr-manual-host button{padding:2px 9px}
@@ -4222,24 +4229,29 @@ globalThis.__BTR_DESKTOP_RELEASE__={"version":"2026.11.15.1-d1","adapterRevision
     if (!general || !catalog) return;
     if (!panel?.isConnected) {
       unsubscribe?.(); unsubscribeUpdate?.();
+      clearTimeout(resetTimer); resetArmed = false;
       panel = document.createElement("section"); panel.id = "btr-desktop-settings"; panel.className = "settings_content--item";
       panel.innerHTML = `<h4>BTR 线程撕裂者<span class="btr-version">${api.version}</span></h4>
         <div class="btr-row"><label><input type="checkbox" data-setting="enabled">启用多线程加速</label></div>
-        <div class="btr-row"><span class="btr-label">CDN 模式</span><button type="button" data-mode="mainland">大陆 CDN</button><button type="button" data-mode="overseas">海外 CDN</button><button type="button" data-mode="custom">自定义</button></div>
-        <div class="btr-custom" hidden>
-          <div class="btr-note btr-custom-empty">还没选服务器，暂时按大陆 CDN 下载。</div>
-          <div class="btr-host-groups"></div>
-          <div class="btr-host-title">手动添加</div>
-          <div class="btr-manual-hosts"></div>
-          <div class="btr-host-add"><input type="text" id="btr-desktop-host" placeholder="例如 upos-sz-mirrorali.bilivideo.com" spellcheck="false" autocomplete="off" aria-label="服务器地址"><button type="button" id="btr-desktop-host-add">添加</button></div>
-          <div class="btr-note btr-host-error" role="alert"></div>
-          <div class="btr-note">只能填 B 站的视频服务器（bilivideo.com、akamaized.net 等），视频的下载地址不会发给别的网站。</div>
+        <div class="btr-note btr-disabled-note" hidden>多线程加速已关闭，当前由客户端自行下载。</div>
+        <div class="btr-video-controls">
+          <div class="btr-row"><span class="btr-label">CDN 模式</span><button type="button" data-mode="mainland">大陆 CDN</button><button type="button" data-mode="overseas">海外 CDN</button><button type="button" data-mode="custom">自定义</button></div>
+          <div class="btr-custom" hidden>
+            <div class="btr-custom-head"><span class="btr-note btr-inline btr-custom-count"></span><button type="button" id="btr-desktop-host-toggle">一键全选</button></div>
+            <div class="btr-note btr-custom-empty">还没选服务器，暂时按大陆 CDN 下载。</div>
+            <div class="btr-host-groups"></div>
+            <div class="btr-host-title">手动添加</div>
+            <div class="btr-manual-hosts"></div>
+            <div class="btr-host-add"><input type="text" id="btr-desktop-host" placeholder="例如 upos-sz-mirrorali.bilivideo.com" spellcheck="false" autocomplete="off" aria-label="服务器地址"><button type="button" id="btr-desktop-host-add">添加</button></div>
+            <div class="btr-note btr-host-error" role="alert"></div>
+            <div class="btr-note">只能填 B 站的视频服务器（bilivideo.com、akamaized.net 等），视频的下载地址不会发给别的网站。</div>
+          </div>
+          <div class="btr-row"><label><input type="checkbox" data-setting="autoConcurrency">自动线程数</label><span class="btr-note btr-inline">BTR将智能选择需要的线程数。</span></div>
+          <div class="btr-row btr-threads-row"><label class="btr-label" for="btr-desktop-threads">并发线程</label><input id="btr-desktop-threads" type="range" min="0" max="5" step="1"><output></output></div>
         </div>
-        <div class="btr-row"><label><input type="checkbox" data-setting="autoConcurrency">自动线程数</label><span class="btr-note btr-inline">BTR将智能选择需要的线程数。</span></div>
-        <div class="btr-row btr-threads-row"><label class="btr-label" for="btr-desktop-threads">并发线程</label><input id="btr-desktop-threads" type="range" min="0" max="5" step="1"><output></output></div>
         <div class="btr-row btr-live-row"><label><input type="checkbox" data-setting="liveEnabled">直播加速（实验性）</label><span class="btr-note btr-inline">打开后，直播间画面右下角的清晰度菜单里会多一个开关，可以随时关掉。</span></div>
         <div class="btr-row"><label><input type="checkbox" data-setting="autoCheckUpdates">自动检查 BTR 更新</label></div>
-        <div class="btr-row"><button type="button" id="btr-desktop-check-update">检查 BTR 更新</button><button type="button" id="btr-desktop-uninstall">卸载 BTR</button><button type="button" id="btr-desktop-install-update" hidden>安装更新</button></div>
+        <div class="btr-row"><button type="button" id="btr-desktop-check-update">检查 BTR 更新</button><button type="button" id="btr-desktop-reset">恢复默认</button><button type="button" id="btr-desktop-uninstall">卸载 BTR</button><button type="button" id="btr-desktop-install-update" hidden>安装更新</button></div>
         <div class="btr-note btr-update-status" role="status"></div><div class="btr-note btr-save-error" role="status"></div>`;
       // The servers of the custom CDN mode: the known ones to tick, others typed in.
       const core = root.__BILI_RANGE_CORE__, cdn = root.__BILI_CDN_RESOLVER_FACTORY__, maxHosts = 32;
@@ -4283,14 +4295,34 @@ globalThis.__BTR_DESKTOP_RELEASE__={"version":"2026.11.15.1-d1","adapterRevision
       panel.addEventListener("click", event => {
         const button = event.target.closest("button"); if (!button) return;
         if (button.id === "btr-desktop-check-update") api.checkUpdate();
+        if (button.id === "btr-desktop-reset") {
+          if (!resetArmed) {
+            resetArmed = true;
+            button.textContent = "确认恢复默认";
+            clearTimeout(resetTimer);
+            resetTimer = setTimeout(() => { resetArmed = false; if (button.isConnected) button.textContent = "恢复默认"; }, 3000);
+            return;
+          }
+          clearTimeout(resetTimer); resetArmed = false; button.textContent = "恢复默认";
+          try { api.resetSettings(); hostError.textContent = ""; panel.querySelector(".btr-save-error").textContent = ""; }
+          catch (_) { panel.querySelector(".btr-save-error").textContent = "设置保存失败，请检查客户端的数据目录是否可写。"; }
+        }
         if (button.id === "btr-desktop-host-add") addHost();
+        if (button.id === "btr-desktop-host-toggle") {
+          hostError.textContent = "";
+          save({ customHosts: api.getSettings().customHosts.length ? [] : knownHosts.slice(0, maxHosts) });
+        }
         if (button.dataset.removeHost) save({ customHosts: api.getSettings().customHosts.filter(host => host !== button.dataset.removeHost) });
         if (button.dataset.mode) save({ mode: button.dataset.mode });
       });
       unsubscribe = api.onSettings(settings => {
         panel.querySelectorAll("[data-setting]").forEach(x => { x.checked = settings[x.dataset.setting]; });
+        panel.querySelector(".btr-disabled-note").hidden = settings.enabled;
+        panel.querySelector(".btr-video-controls").classList.toggle("btr-disabled", !settings.enabled);
         panel.querySelectorAll("[data-mode]").forEach(x => x.setAttribute("aria-pressed", String(x.dataset.mode === settings.mode)));
         panel.querySelector(".btr-custom").hidden = settings.mode !== "custom";
+        panel.querySelector(".btr-custom-count").textContent = `已选 ${settings.customHosts.length} 个服务器（最多 ${maxHosts} 个）`;
+        panel.querySelector("#btr-desktop-host-toggle").textContent = settings.customHosts.length ? "一键清空" : "一键全选";
         panel.querySelector(".btr-custom-empty").hidden = settings.customHosts.length > 0;
         panel.querySelectorAll("[data-host]").forEach(x => { x.checked = settings.customHosts.includes(x.dataset.host); });
         panel.querySelector(".btr-manual-hosts").replaceChildren(...settings.customHosts.filter(host => !knownHosts.includes(host)).map(host => {
@@ -4325,19 +4357,28 @@ globalThis.__BTR_DESKTOP_RELEASE__={"version":"2026.11.15.1-d1","adapterRevision
         scroller.scrollTo({ top: scroller.scrollTop + panel.getBoundingClientRect().top - scroller.getBoundingClientRect().top - 20, behavior: "smooth" });
         catalog.classList.add("btr-current"); navButton.classList.add("active");
       });
-      catalog.addEventListener("click", event => { if (!navButton.contains(event.target)) { catalog.classList.remove("btr-current"); navButton.classList.remove("active"); } });
+      if (!boundCatalogs.has(catalog)) {
+        boundCatalogs.add(catalog);
+        catalog.addEventListener("click", event => { if (!navButton?.contains(event.target)) { catalog.classList.remove("btr-current"); navButton?.classList.remove("active"); } });
+      }
       const scroller = document.querySelector(".app_settings .settings_content");
       const updateSelection = () => {
+        const currentCatalog = document.querySelector(".app_settings .settings_catalog");
+        if (!panel || !scroller || !navButton || !currentCatalog) return;
         const top = panel.getBoundingClientRect().top - scroller.getBoundingClientRect().top;
         const selected = scroller.scrollTop < 1 || (top <= 24 && top + panel.offsetHeight > 24);
-        catalog.classList.toggle("btr-current", selected); navButton.classList.toggle("active", selected);
+        currentCatalog.classList.toggle("btr-current", selected); navButton.classList.toggle("active", selected);
       };
-      scroller?.addEventListener("scroll", updateSelection, { passive: true });
+      if (scroller && !boundScrollers.has(scroller)) {
+        boundScrollers.add(scroller);
+        scroller.addEventListener("scroll", updateSelection, { passive: true });
+      }
       if (scroller) updateSelection();
     }
   }
   const observer = new MutationObserver(() => { if (!scheduled) { scheduled = true; requestAnimationFrame(mount); } });
   observer.observe(document.documentElement, { childList: true, subtree: true });
+  root.addEventListener("pagehide", () => { observer.disconnect(); unsubscribe?.(); unsubscribeUpdate?.(); clearTimeout(resetTimer); }, { once: true });
   mount();
 })(globalThis);
 
@@ -4345,9 +4386,10 @@ globalThis.__BTR_DESKTOP_RELEASE__={"version":"2026.11.15.1-d1","adapterRevision
 /* src/player-settings.js */
 (function (root) {
   "use strict";
+  if (location.origin === "https://bilipc.bilibili.com" && location.pathname === "/index.html") return;
   const api = root.__BTR_DESKTOP__, threads = [4, 8, 16, 32, 64, 128];
   const id = "btr-desktop-player-settings";
-  let panel, unsubscribe, scheduled = false, opened = false;
+  let panel, unsubscribe, scheduled = false, opened = false, copyResetTimer = 0;
   const style = document.createElement("style");
   style.textContent = `
     #${id}{margin:0;color:#fff;font-size:12px;text-align:left}
@@ -4396,7 +4438,7 @@ globalThis.__BTR_DESKTOP_RELEASE__={"version":"2026.11.15.1-d1","adapterRevision
   }
   // The page may write the clipboard only while its window is in front; otherwise the client's
   // main process does it (payload/preload.cjs).
-  const copyText = text => navigator.clipboard.writeText(text).catch(() => new Promise((resolve, reject) => {
+  const copyText = text => (navigator.clipboard?.writeText ? navigator.clipboard.writeText(text) : Promise.reject(Error("clipboard unavailable"))).catch(() => new Promise((resolve, reject) => {
     const channel = "__BTR_DESKTOP_UPDATE__", copyId = `${Date.now()}-${Math.random()}`;
     const answer = event => {
       if (event.source !== root || event.data?.channel !== channel || event.data.type !== "copied" || event.data.id !== copyId) return;
@@ -4410,7 +4452,8 @@ globalThis.__BTR_DESKTOP_RELEASE__={"version":"2026.11.15.1-d1","adapterRevision
   function mount() {
     scheduled = false;
     const target = document.querySelector(".bpx-player-ctrl-setting-menu-right"), template = target?.querySelector(TEMPLATE);
-    if (!target || !template?.querySelector(".bui-radio-group .bui-radio-item input")) { if (panel && !panel.isConnected) { unsubscribe?.(); unsubscribe = null; panel = null; } return; }
+    const sample = template?.querySelector(".bui-radio-group .bui-radio-item");
+    if (!target || !sample?.querySelector("input") || !caption(sample)) { if (panel && !panel.isConnected) { unsubscribe?.(); unsubscribe = null; panel = null; } return; }
     if (panel?.parentElement === target) return;
     unsubscribe?.(); panel?.remove();
     panel = document.createElement("div"); panel.id = id;
@@ -4422,10 +4465,11 @@ globalThis.__BTR_DESKTOP_RELEASE__={"version":"2026.11.15.1-d1","adapterRevision
     const error = document.createElement("div"); error.className = "btr-save-error"; error.setAttribute("role", "status");
     fold.append(
       summary,
+      group(template, "加速", "enabled", [["on", "开启"], ["off", "关闭"]]),
       group(template, "CDN", "mode", [["mainland", "大陆 CDN"], ["overseas", "海外 CDN"], ["custom", "自定义"]]),
       group(template, "并发线程", "concurrency", [["auto", "自动"], ...threads.map(value => [value, String(value)])]),
       // A button in the look of the client's own choices; it never stays picked.
-      group(template, "诊断", "diagnostics", [["copy", "复制诊断信息"]]),
+      group(template, "诊断", "diagnostics", [["stats", "统计信息"], ["copy", "复制诊断信息"]]),
       error
     );
     panel.append(fold);
@@ -4434,13 +4478,25 @@ globalThis.__BTR_DESKTOP_RELEASE__={"version":"2026.11.15.1-d1","adapterRevision
       const setting = input.dataset.btrSetting;
       if (setting === "diagnostics") {
         input.checked = false;
+        if (input.value === "stats") {
+          const statsPanel = root.__BILI_STATS_PANEL__;
+          if (document.getElementById("__bilibili_thread_ripper_stats__")) statsPanel?.close?.();
+          else statsPanel?.open?.();
+          return;
+        }
+        if (input.value !== "copy") return;
         const text = caption(input.closest(".bui-radio-item"));
-        copyText(diagnostics()).then(() => "已复制", () => "复制失败").then(result => { text.textContent = result; setTimeout(() => { text.textContent = "复制诊断信息"; }, 2000); });
+        clearTimeout(copyResetTimer);
+        Promise.resolve().then(() => copyText(diagnostics())).then(() => "已复制", () => "复制失败").then(result => {
+          if (text) text.textContent = result;
+          copyResetTimer = setTimeout(() => { if (text) text.textContent = "复制诊断信息"; }, 2000);
+        });
         return;
       }
-      if (setting !== "mode" && setting !== "concurrency") return;
+      if (!["enabled", "mode", "concurrency"].includes(setting)) return;
       // "自动" switches 自动线程数 on; a number switches it off and sets that thread count.
-      const patch = setting === "mode" ? { mode: input.value }
+      const patch = setting === "enabled" ? { enabled: input.value === "on" }
+        : setting === "mode" ? { mode: input.value }
         : input.value === "auto" ? { autoConcurrency: true } : { autoConcurrency: false, concurrency: Number(input.value) };
       try { api.setSettings(patch); error.textContent = ""; }
       catch (_) { error.textContent = "设置保存失败，请检查客户端的数据目录是否可写。"; }
@@ -4449,15 +4505,20 @@ globalThis.__BTR_DESKTOP_RELEASE__={"version":"2026.11.15.1-d1","adapterRevision
     unsubscribe = api.onSettings(settings => {
       for (const input of panel.querySelectorAll("[data-btr-setting]")) {
         if (input.dataset.btrSetting === "diagnostics") continue;
-        const shown = input.dataset.btrSetting === "concurrency" && settings.autoConcurrency ? "auto" : String(settings[input.dataset.btrSetting]);
+        const settingName = input.dataset.btrSetting;
+        const shown = settingName === "enabled" ? (settings.enabled ? "on" : "off")
+          : settingName === "concurrency" && settings.autoConcurrency ? "auto"
+          : String(settings[settingName]);
         input.checked = input.value === shown;
       }
-      state.textContent = `${{ mainland: "大陆 CDN", overseas: "海外 CDN", custom: "自定义 CDN" }[settings.mode]} · ${settings.autoConcurrency ? "自动线程" : `${settings.concurrency} 线程`}`;
+      state.textContent = settings.enabled
+        ? `${{ mainland: "大陆 CDN", overseas: "海外 CDN", custom: "自定义 CDN" }[settings.mode]} · ${settings.autoConcurrency ? "自动线程" : `${settings.concurrency} 线程`}`
+        : "已关闭";
     });
   }
   const observer = new MutationObserver(() => { if (!scheduled) { scheduled = true; requestAnimationFrame(mount); } });
   observer.observe(document.documentElement, {childList:true,subtree:true});
-  root.addEventListener("pagehide", () => { observer.disconnect(); unsubscribe?.(); }, {once:true});
+  root.addEventListener("pagehide", () => { observer.disconnect(); unsubscribe?.(); clearTimeout(copyResetTimer); }, {once:true});
   mount();
 })(globalThis);
 

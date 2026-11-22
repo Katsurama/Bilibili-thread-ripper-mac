@@ -33,6 +33,33 @@ const server = http.createServer((req, res) => { res.setHeader("Content-Type", r
     await context.grantPermissions(["clipboard-read", "clipboard-write"], { origin });
     const second = await context.newPage(); await second.goto(origin);
     await page.bringToFront();
+    // Settings view: mounts into .app_settings, dims controls when disabled, toggles all/none custom hosts, and requires two clicks to reset.
+    await page.locator("#btr-desktop-settings").waitFor();
+    await page.locator("#btr-desktop-nav").waitFor();
+    await page.locator('#btr-desktop-settings [data-setting="enabled"]').uncheck();
+    assert.equal(await page.locator("#btr-desktop-settings .btr-video-controls.btr-disabled").count(), 1);
+    assert.equal(await page.locator("#btr-desktop-settings .btr-disabled-note").isVisible(), true);
+    await page.locator('#btr-desktop-settings [data-setting="enabled"]').check();
+    assert.equal(await page.locator("#btr-desktop-settings .btr-video-controls.btr-disabled").count(), 0);
+    await page.locator('#btr-desktop-settings [data-mode="custom"]').click();
+    assert.equal(await page.locator("#btr-desktop-host-toggle").textContent(), "一键全选");
+    await page.locator("#btr-desktop-host-toggle").click();
+    assert.equal(await page.locator("#btr-desktop-settings .btr-custom-count").textContent(), "已选 13 个服务器（最多 32 个）");
+    assert.equal(await page.locator("#btr-desktop-host-toggle").textContent(), "一键清空");
+    await page.locator("#btr-desktop-host-toggle").click();
+    assert.equal(await page.locator("#btr-desktop-settings .btr-custom-count").textContent(), "已选 0 个服务器（最多 32 个）");
+    assert.equal(await page.locator("#btr-desktop-host-toggle").textContent(), "一键全选");
+    await page.locator("#btr-desktop-host").fill("cn-gdfs-ct-01-01.bilivideo.com");
+    await page.locator("#btr-desktop-host-add").click();
+    assert.equal(await page.locator("#btr-desktop-settings .btr-manual-host").count(), 1);
+    assert.equal(await page.locator("#btr-desktop-reset").textContent(), "恢复默认");
+    await page.locator("#btr-desktop-reset").click();
+    assert.equal(await page.locator("#btr-desktop-reset").textContent(), "确认恢复默认");
+    assert.equal(await page.evaluate(() => __BTR_DESKTOP__.getSettings().mode), "custom");
+    await page.locator("#btr-desktop-reset").click();
+    assert.equal(await page.locator("#btr-desktop-reset").textContent(), "恢复默认");
+    assert.deepEqual(await page.evaluate(() => { const s = __BTR_DESKTOP__.getSettings(); return [s.mode, s.customHosts.length, s.enabled]; }), ["mainland", 0, true]);
+    console.log("PASS settings view: disable state, custom CDN select-all/clear, manual host add, two-step reset");
     // The client's menu as BTR finds it: its own 视频比例 row (the rows BTR copies), then 其他设置.
     const clientMenu = '<div class="bpx-player-ctrl-setting-aspect"><div class="bpx-player-ctrl-setting-aspect-title" data-i18n="videoAspectRatio">视频比例</div><div class="bpx-player-ctrl-setting-aspect-content bui bui-radio bui-dark"><div class="bui-area"><div class="bui-radio-wrap bui-radio-button"><div class="bui-radio-group" style="margin: 0 -4px;"><label class="bui-radio-item" style="margin: 0 4px;"><input type="radio" class="bui-radio-input" value="0:0" name="bui-radio2" checked><span class="bui-radio-label">自动</span></label><label class="bui-radio-item" style="margin: 0 4px;"><input type="radio" class="bui-radio-input" value="4:3" name="bui-radio2"><span class="bui-radio-label">4:3</span></label></div></div></div></div></div><div class="bpx-player-ctrl-setting-others">其他设置</div>';
     await page.evaluate(html => {
@@ -47,8 +74,14 @@ const server = http.createServer((req, res) => { res.setHeader("Content-Type", r
     assert.equal(await page.locator("#btr-desktop-player-settings + .bpx-player-ctrl-setting-others").count(), 1);
     // The rows are the client's own: its markup and spacing, BTR's titles and choices, the client's row untouched.
     assert.deepEqual(await page.evaluate(() => [...document.querySelectorAll("#btr-desktop-player-settings .bpx-player-ctrl-setting-aspect")].map(row => [row.querySelector(".bpx-player-ctrl-setting-aspect-title").textContent, row.querySelector("[data-i18n]"), row.querySelector(".bui-radio-group").getAttribute("style"), row.querySelector(".bui-radio-item").getAttribute("style")])),
-      [["CDN", null, "margin: 0 -4px;", "margin: 0 4px;"], ["并发线程", null, "margin: 0 -4px;", "margin: 0 4px;"], ["诊断", null, "margin: 0 -4px;", "margin: 0 4px;"]]);
+      [["加速", null, "margin: 0 -4px;", "margin: 0 4px;"], ["CDN", null, "margin: 0 -4px;", "margin: 0 4px;"], ["并发线程", null, "margin: 0 -4px;", "margin: 0 4px;"], ["诊断", null, "margin: 0 -4px;", "margin: 0 4px;"]]);
     assert.deepEqual(await page.evaluate(() => [...document.querySelectorAll('[name="bui-radio2"]')].map(input => input.checked)), [true, false]);
+    assert.equal(await page.locator('[name="btr-desktop-player-enabled"][value="on"]').isChecked(), true);
+    await page.locator('[name="btr-desktop-player-enabled"][value="off"]').check();
+    await second.waitForFunction(() => __BTR_DESKTOP__.getSettings().enabled === false);
+    assert.equal(await page.locator("#btr-desktop-player-settings summary span").textContent(), "已关闭");
+    await page.locator('[name="btr-desktop-player-enabled"][value="on"]').check();
+    await second.waitForFunction(() => __BTR_DESKTOP__.getSettings().enabled === true);
     // The player menu shows 自动 first and checked; a number switches it off.
     assert.equal(await page.locator('[name="btr-desktop-player-concurrency"]').first().getAttribute("value"), "auto");
     assert.equal(await page.locator('[name="btr-desktop-player-concurrency"][value="auto"]').isChecked(), true);
@@ -175,11 +208,11 @@ const server = http.createServer((req, res) => { res.setHeader("Content-Type", r
     assert.equal(published.architecture, "native-player-range-transport"); assert.equal(published.acceleratedRequests, 3); assert.equal(typeof published.activeThreads, "number"); assert.equal(typeof published.totalSpeedBps, "number");
     // macOS: the button is in the player's menu, under the 线程撕裂者 line.
     await page.evaluate(() => navigator.clipboard.writeText(""));
-    await page.locator('#btr-desktop-player-settings label:has([name="btr-desktop-player-diagnostics"])').click();
+    await page.locator('#btr-desktop-player-settings label:has([name="btr-desktop-player-diagnostics"][value="copy"])').click();
     let copied = "";
     for (let i = 0; i < 50 && !copied; i++) { copied = await page.evaluate(() => navigator.clipboard.readText()); if (!copied) await page.waitForTimeout(100); }
-    assert.equal(await page.locator('#btr-desktop-player-settings label:has([name="btr-desktop-player-diagnostics"])').textContent(), "已复制");
-    assert.equal(await page.locator('[name="btr-desktop-player-diagnostics"]').isChecked(), false);
+    assert.equal(await page.locator('#btr-desktop-player-settings label:has([name="btr-desktop-player-diagnostics"][value="copy"])').textContent(), "已复制");
+    assert.equal(await page.locator('[name="btr-desktop-player-diagnostics"][value="copy"]').isChecked(), false);
     const version = JSON.parse(fs.readFileSync(path.join(root, "desktop.json"))).version;
     assert.ok(copied.startsWith(`BTR diagnostics (format 1) | BTR ${version} stable | `), copied.slice(0, 200));
     for (const part of ["== Summary ==", "== Environment ==", "== Settings ==", "== Downloads ==", "== Events ==", "== End =="]) assert.ok(copied.includes(part), `the copy lacks ${part}`);
@@ -225,6 +258,20 @@ const server = http.createServer((req, res) => { res.setHeader("Content-Type", r
     assert.match(statistics.rows["线程"], /^\d+( \/ \d+)?$/);
     assert.deepEqual([statistics.available, statistics.closed, statistics.gone], [true, true, false]);
     console.log("PASS BTR 统计信息: the entry in the menu of a right click opens the shared panel over the client's player, in the compatibility mode");
+    // The 诊断 row's 统计信息 button in the player menu opens and closes the same panel.
+    await page.evaluate(() => {
+      const box = document.createElement("div");
+      box.id = "btr-stats-test-box";
+      box.className = "bpx-player-container";
+      box.innerHTML = '<div class="bpx-player-video-area"></div>';
+      document.body.append(box);
+    });
+    await page.locator('#btr-desktop-player-settings label:has([name="btr-desktop-player-diagnostics"][value="stats"])').click();
+    assert.equal(await page.locator("#__bilibili_thread_ripper_stats__").count(), 1);
+    assert.equal(await page.locator('[name="btr-desktop-player-diagnostics"][value="stats"]').isChecked(), false);
+    await page.locator('#btr-desktop-player-settings label:has([name="btr-desktop-player-diagnostics"][value="stats"])').click();
+    assert.equal(await page.locator("#__bilibili_thread_ripper_stats__").count(), 0);
+    await page.evaluate(() => document.getElementById("btr-stats-test-box")?.remove());
     // Another video cancels what the old one was still downloading, without a stale delivery.
     const abort = await page.evaluate(async () => {
       const promise = fetch("https://upos-sz-mirrorali.bilivideo.com/upgcxcode/slow.m4s", { headers: { Range: "bytes=0-1048575" } }).then(() => "stale", e => e.name);

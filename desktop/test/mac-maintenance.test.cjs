@@ -53,7 +53,7 @@ test("a higher mac-version.json is offered, a lower one (a stale CDN copy) is no
 
 test("updating downloads from the public address, so no SSH key is asked for, and a failed download is reported", () => {
   assert.match(script, /git -C "\$HERE" pull --ff-only -q "\$SELF_URL" main; then exec .* --pulled; fi\n\s+exec .* --pull-failed/);
-  assert.match(script, /if \[ -n "\$PULL_FAILED" \]; then\n\s+say "注意：没能从 GitHub 拉到最新版本/);
+  assert.match(script, /if \[ -n "\$PULL_FAILED" \]; then\n\s+say "注意：没能从 GitHub 拉到最新版本[\s\S]*?\n\s+exit 1\n\s+fi/);
 });
 
 // install-mac.sh uninstall against a made-up client: it replaces a whole application, so it is run for real.
@@ -260,4 +260,127 @@ test("the main process writes the clipboard only right after a real click in BTR
   click(true, true); await ask(4); await ask(5);
   assert.deepEqual(invoked, [["btr-desktop:copy-text", "report"]], "one copy per real click");
   assert.deepEqual(posted.filter(m => m.type === "copied").map(m => [m.id, m.ok]), [[1, false], [2, false], [3, false], [4, true], [5, false]]);
+});
+
+test("maintain.cjs trusted() rejects destroyed senders without throwing", () => {
+  const { trusted } = require("../../payload/maintain.cjs");
+  const frame = { url: "https://bilipc.bilibili.com/index.html" };
+  assert.equal(trusted({ senderFrame: frame, sender: { mainFrame: frame, isDestroyed: () => false } }), true);
+  assert.equal(trusted({ senderFrame: frame, sender: { get mainFrame() { throw new TypeError("Object has been destroyed"); }, isDestroyed: () => true } }), false);
+});
+
+test("settings.resetSettings() restores defaults and notifies live frames when liveEnabled changes", () => {
+  const vm = require("node:vm");
+  const store = new Map(), posted = [];
+  const context = vm.createContext({
+    URL, console,
+    location: { origin: "https://bilipc.bilibili.com", pathname: "/index.html" },
+    localStorage: { getItem: k => store.has(k) ? store.get(k) : null, setItem: (k, v) => store.set(k, String(v)) },
+    addEventListener() {},
+    postMessage(data) { posted.push(data); }
+  });
+  context.globalThis = context;
+  vm.runInContext(fs.readFileSync(path.join(__dirname, "../shared/range-core.js"), "utf8"), context);
+  vm.runInContext(fs.readFileSync(path.join(__dirname, "../src/settings.js"), "utf8"), context);
+  const api = context.__BTR_DESKTOP__;
+  api.setSettings({ enabled: false, mode: "overseas", concurrency: 64, autoConcurrency: false, liveEnabled: true, customHosts: ["upos-sz-mirrorcos.bilivideo.com"] });
+  posted.length = 0;
+  const reset = api.resetSettings();
+  assert.equal(reset.enabled, true);
+  assert.equal(reset.mode, "mainland");
+  assert.equal(reset.concurrency, 8);
+  assert.equal(reset.autoConcurrency, true);
+  assert.equal(reset.liveEnabled, false);
+  assert.deepEqual(Array.from(reset.customHosts), []);
+  assert.equal(posted.some(m => m.type === "live-config" && m.enabled === false), true);
+});
+
+test("player-settings.js falls back to main-process copy postMessage when navigator.clipboard is missing", async () => {
+  const vm = require("node:vm");
+  const posted = [], listeners = {};
+  class MockEl {
+    constructor(tag) { this.tagName = tag; this.children = []; this.dataset = {}; this.style = {}; this.listeners = {}; this.textContent = ""; this.value = ""; }
+    get firstChild() { return this.children[0] || null; }
+    get firstElementChild() { return this.children[0] || null; }
+    get parentElement() { return this._parent || null; }
+    get isConnected() { return true; }
+    setAttribute() {}
+    removeAttribute() {}
+    addEventListener(type, fn) { (this.listeners[type] ||= []).push(fn); }
+    append(...kids) { for (const k of kids) { if (typeof k === "object") { k._parent = this; this.children.push(k); } } }
+    insertBefore(node) { node._parent = this; this.children.unshift(node); }
+    replaceChildren(...kids) { this.children = []; this.append(...kids); }
+    remove() {}
+    cloneNode() {
+      const copy = new MockEl(this.tagName); copy.className = this.className; copy.value = this.value;
+      for (const c of this.children) { const cc = c.cloneNode(); cc._parent = copy; copy.children.push(cc); }
+      return copy;
+    }
+    closest(sel) { return sel === ".bui-radio-item" ? this._closestItem || this._parent || null : null; }
+    querySelector(sel) {
+      if (sel === ".bpx-player-ctrl-setting-menu-right") return target;
+      if (sel === ":scope > .bpx-player-ctrl-setting-aspect") return template;
+      if (sel === ".bui-radio-group .bui-radio-item") return this.querySelector(".bui-radio-group")?.querySelector(".bui-radio-item") || null;
+      if (sel === ".bui-radio-text" || sel === ".bui-radio-label") return this.children.find(c => c.className === "bui-radio-label") || null;
+      if (sel === "[class*=title]") return this.children.find(c => c.className === "title") || null;
+      const cls = sel.startsWith(".") ? sel.slice(1) : "";
+      const queue = [...this.children];
+      while (queue.length) {
+        const node = queue.shift();
+        if (cls ? node.className === cls : node.tagName === sel) return node;
+        queue.push(...(node.children || []));
+      }
+      return null;
+    }
+    querySelectorAll(sel) {
+      if (sel === "[data-btr-setting]") {
+        const out = [];
+        const walk = n => { if (n.dataset?.btrSetting) out.push(n); for (const c of n.children || []) walk(c); };
+        walk(this); return out;
+      }
+      return [];
+    }
+  }
+  const titleEl = new MockEl("div"); titleEl.className = "title";
+  const groupEl = new MockEl("div"); groupEl.className = "bui-radio-group";
+  const sampleItem = new MockEl("label"); sampleItem.className = "bui-radio-item";
+  const sampleInput = new MockEl("input"); const sampleCaption = new MockEl("span"); sampleCaption.className = "bui-radio-label";
+  sampleItem.append(sampleInput, sampleCaption); groupEl.append(sampleItem);
+  const template = new MockEl("div"); template.append(titleEl, groupEl);
+  const target = new MockEl("div");
+  const doc = {
+    documentElement: new MockEl("html"), head: new MockEl("head"),
+    createElement: tag => new MockEl(tag), getElementById: () => null,
+    querySelector: sel => sel === ".bpx-player-ctrl-setting-menu-right" ? target : null
+  };
+  const win = {
+    location: { origin: "https://bilipc.bilibili.com", pathname: "/player.html" },
+    document: doc, navigator: {}, performance: { timeOrigin: 0, now: () => 0 },
+    innerWidth: 800, innerHeight: 600,
+    MutationObserver: class { observe() {} disconnect() {} },
+    requestAnimationFrame: fn => fn(),
+    setTimeout, clearTimeout, HTMLInputElement: MockEl,
+    addEventListener: (t, fn) => (listeners[t] ||= []).push(fn),
+    removeEventListener: (t, fn) => { listeners[t] = (listeners[t] || []).filter(x => x !== fn); },
+    postMessage() {},
+    __BTR_DESKTOP__: { version: "1.0.0", getSettings: () => ({ enabled: true, mode: "mainland", concurrency: 8, autoConcurrency: true }), onSettings(fn) { fn({ enabled: true, mode: "mainland", concurrency: 8, autoConcurrency: true }); return () => {}; } },
+    __BTR_DIAGNOSTIC_REPORT__: { render: () => "report-text" },
+    __biliThreadRipperDebug: { report: () => "{}", getStats: () => ({}) }
+  };
+  const ctx = vm.createContext(win);
+  const vmRoot = vm.runInContext("globalThis", ctx);
+  win.postMessage = data => {
+    posted.push(data);
+    if (data.type === "copy") {
+      for (const fn of listeners.message || []) fn({ source: vmRoot, data: { channel: "__BTR_DESKTOP_UPDATE__", type: "copied", id: data.id, ok: true } });
+    }
+  };
+  vm.runInContext(fs.readFileSync(path.join(__dirname, "../src/player-settings.js"), "utf8"), ctx);
+  const panel = target.children[0];
+  const copyInput = panel.querySelectorAll("[data-btr-setting]").find(i => i.dataset.btrSetting === "diagnostics" && i.value === "copy");
+  copyInput.checked = true;
+  for (const fn of panel.listeners.change || []) fn({ target: copyInput });
+  await new Promise(resolve => setTimeout(resolve, 20));
+  assert.equal(posted.some(m => m.type === "copy" && m.text === "report-text"), true);
+  assert.equal(copyInput._parent.children.find(c => c.className === "bui-radio-label").textContent, "已复制");
 });

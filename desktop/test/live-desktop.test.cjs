@@ -18,6 +18,7 @@ function livePage({ saved, href = "https://live.bilibili.com/blanc/1?liteVersion
     get className() { return [...this.classList.set].join(" "); }
     set innerHTML(_value) {}
     get firstChild() { return this.children[0] || null; }
+    get nextSibling() { if (!this.parent) return null; const i = this.parent.children.indexOf(this); return i >= 0 ? this.parent.children[i + 1] || null : null; }
     get isConnected() { for (let n = this; n; n = n.parent) if (n === doc.documentElement) return true; return false; }
     setAttribute(k, v) { this.attrs[k] = String(v); }
     getAttribute(k) { return this.attrs[k] ?? null; }
@@ -154,4 +155,66 @@ test("复制诊断信息 in the live quality menu copies the live module's state
   assert.match(page.copied[0], /^BTR diagnostics \(format 1\)/);
   assert.match(page.copied[0], /^== Live \(top\) ==\nstate +waiting$/m, "the live module's own state is in it");
   assert.equal(/[^\x00-\x7f]/.test(page.copied[0]), false, "plain English text");
+});
+
+test("live-ui restores status and copy rows if partially detached while row remains first", () => {
+  const page = livePage();
+  const [, status, copy] = page.panel.children;
+  status.remove();
+  copy.remove();
+  assert.equal(page.panel.children.length, 1);
+  page.window.__BTR_LIVE_ALLOW__(true);
+  assert.deepEqual(page.panel.children.slice(0, 3), [page.row, status, copy]);
+});
+
+test("live-ui falls back to execCommand when navigator.clipboard is missing and cleans up on pagehide", async () => {
+  const listeners = { message: [], storage: [], pagehide: [] };
+  const execCopied = [];
+  let disconnected = false, clearedInterval = false;
+  class Node {
+    constructor(tag) { this.tagName = tag; this.children = []; this.parent = null; this.attrs = {}; this.classList = { set: new Set(), toggle: (c, on) => on ? this.classList.set.add(c) : this.classList.set.delete(c), contains: c => this.classList.set.has(c) }; this.style = {}; this.hidden = false; this.textContent = ""; this.listeners = {}; }
+    set className(value) { this.classList.set = new Set(String(value).split(/\s+/).filter(Boolean)); }
+    get className() { return [...this.classList.set].join(" "); }
+    set innerHTML(_value) {}
+    get firstChild() { return this.children[0] || null; }
+    get nextSibling() { if (!this.parent) return null; const i = this.parent.children.indexOf(this); return i >= 0 ? this.parent.children[i + 1] || null : null; }
+    get isConnected() { return true; }
+    setAttribute(k, v) { this.attrs[k] = String(v); }
+    getAttribute(k) { return this.attrs[k] ?? null; }
+    addEventListener(type, fn) { (this.listeners[type] ||= []).push(fn); }
+    select() {}
+    append(...kids) { for (const k of kids) { k.parent = this; this.children.push(k); } }
+    prepend(...kids) { for (const k of kids.reverse()) { k.remove(); k.parent = this; this.children.unshift(k); } }
+    remove() { if (this.parent) { this.parent.children = this.parent.children.filter(k => k !== this); this.parent = null; } }
+  }
+  const panel = new Node("div"), label = new Node("div"), docEl = new Node("html");
+  docEl.append(new Node("head"), panel, label);
+  const doc = {
+    documentElement: docEl, head: docEl.children[0],
+    createElement: tag => new Node(tag),
+    querySelector: sel => sel === ".quality-wrap .panel" ? panel : sel === ".quality-wrap .selected-qn" ? label : null,
+    execCommand: cmd => { if (cmd === "copy") { execCopied.push(docEl.children.at(-1).value); return true; } return false; }
+  };
+  const win = {
+    location: new URL("https://live.bilibili.com/blanc/1"), document: doc, URL, console, Promise, setTimeout, clearTimeout,
+    setInterval: () => 42, clearInterval: id => { if (id === 42) clearedInterval = true; },
+    MutationObserver: class { observe() {} disconnect() { disconnected = true; } },
+    localStorage: { getItem: () => null, setItem() {} },
+    addEventListener: (type, fn) => (listeners[type] ||= []).push(fn),
+    postMessage(data) { for (const fn of listeners.message || []) fn({ source: win, data }); },
+    fetch: async () => ({ ok: true }), AbortController, DOMException, Headers, Response, Request,
+    performance: { now: () => 0, timeOrigin: 0 },
+    navigator: { userAgent: "test", language: "zh-CN" }, innerWidth: 800, innerHeight: 600
+  };
+  win.globalThis = win; win.window = win;
+  vm.runInContext(LIVE, vm.createContext(win), { filename: "live.js" });
+  const copyBtn = panel.children[2];
+  assert.equal(copyBtn.getAttribute("role"), "button");
+  for (const fn of copyBtn.listeners.keydown || []) fn({ key: "Enter", preventDefault() {}, stopPropagation() {} });
+  await new Promise(resolve => setTimeout(resolve, 20));
+  assert.equal(copyBtn.textContent, "已复制");
+  assert.match(execCopied[0], /^BTR diagnostics \(format 1\)/);
+  for (const fn of listeners.pagehide) fn();
+  assert.equal(disconnected, true);
+  assert.equal(clearedInterval, true);
 });

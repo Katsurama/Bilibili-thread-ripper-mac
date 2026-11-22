@@ -206,6 +206,7 @@ install() {
   if [ -n "$PULL_FAILED" ]; then
     say "注意：没能从 GitHub 拉到最新版本，这次装的是本地已有的版本，客户端可能还会提示有更新。"
     say "检查网络后再运行一次；还不行就重新下载：mv ${HERE} ${HERE}.old && git clone --depth 1 ${SELF_URL} ${HERE}"
+    exit 1
   fi
 }
 

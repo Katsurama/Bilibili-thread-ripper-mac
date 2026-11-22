@@ -37,6 +37,7 @@ const LINKS = {
 };
 
 function trusted(event) {
+  if (!event?.sender || event.sender.isDestroyed?.()) return false;
   const frame = event.senderFrame;
   if (!frame || frame !== event.sender.mainFrame) return false;
   try { const url = new URL(frame.url); return url.origin === "https://bilipc.bilibili.com" && ["/index.html", "/player.html"].includes(url.pathname); }
